@@ -265,7 +265,7 @@
         x.font = `900 ${Math.round((n.crit ? 15 : n.tap ? 9 : 10) * sc)}px sans-serif`;
         x.lineWidth = 3; x.strokeStyle = n.hurt ? '#5a0010' : '#2a1a00';
         x.fillStyle = n.hurt ? '#ff6b6b' : n.crit ? '#ffd23f' : n.tap ? '#fff7c2' : '#fff';
-        const s = (n.crit ? '爆擊 ' : '') + G.fmt(n.v);
+        const s = n.gold ? '💸 +' + G.fmt(n.v) : (n.crit ? '爆擊 ' : '') + G.fmt(n.v);
         x.strokeText(s, n.x, y); x.fillText(s, n.x, y);
       }
       x.globalAlpha = 1;

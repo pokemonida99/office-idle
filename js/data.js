@@ -74,7 +74,7 @@
 
   // 數值曲線（s = 0 起算的總關卡編號）
   const CURVE = {
-    enemyHp: s => 30 * Math.pow(1.35, s),
+    enemyHp: s => 30 * Math.pow(1.355, s),
     enemyAtk: s => 4 * Math.pow(1.16, s),
     gold: s => 3 * Math.pow(1.22, s),
     heroAtk: (base, lv) => base * (1 + 0.32 * (lv - 1)) * Math.pow(1.045, lv - 1) * Math.pow(1.3, Math.floor(lv / 10)),

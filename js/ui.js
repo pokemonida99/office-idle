@@ -256,7 +256,7 @@
       case 'fail': A.play('fail'); break;
       case 'loot': toast(`🏆 取得戰利品「${e.loot.name}」：${e.loot.desc}`); break;
       case 'join': A.play('join'); if (e.id === 'jie') story('join_jie'); buildPanelSoon(); break;
-      case 'goldrain': toast(`💸 薪水雨！+${G.fmt(e.gold)}`); break;
+      case 'goldrain': rnd.nums.push({ x: 240, y: 70, v: e.gold, t: 0, crit: true, gold: true }); A.play('coin'); break;
     }
   }
   let rebuildT = 0; function buildPanelSoon() { rebuildT = 0.05; }
@@ -284,14 +284,19 @@
 
   // ---------- 主迴圈 ----------
   let last = 0, saveT = 0, uiT = 0;
-  function frame(ts) {
-    const dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
-    if (!paused) {
-      game.update(dt);
+  // 幀率低時切成小步，遊戲仍照實際時間推進
+  function step(dt) {
+    for (let left = dt; left > 1e-4 && !paused; left -= 0.05) {
+      game.update(Math.min(0.05, left));
       for (const e of game.events) handle(e);
       game.events.length = 0;
     }
-    rnd.draw(paused ? 0 : dt);
+  }
+  G.__step = sec => { for (let i = 0; i < sec / 0.5; i++) step(0.5); };
+  function frame(ts) {
+    const dt = Math.min(0.5, (ts - last) / 1000 || 0.016); last = ts;
+    step(dt);
+    rnd.draw(paused ? 0 : Math.min(dt, 0.1));
     uiT -= dt; if (uiT <= 0) { uiT = 0.12; updateTop(); updateTeam(); updatePanel(); }
     if (rebuildT > 0) { rebuildT -= dt; if (rebuildT <= 0) buildPanel(); }
     saveT -= dt; if (saveT <= 0) { saveT = 3; save(); }
