@@ -12,8 +12,11 @@ for f in work/gen/*.png; do
     pro_*) out=art/char/${n}.webp; h=420;;
     e_*) out=art/enemy/${n#e_}.webp; h=300;;
     b_*) out=art/enemy/${n}.webp; h=440;;
+    bonus_*) out=art/ui/${n}.webp; h=160;;
     bg*) out=art/bg/$n.webp
          [[ -f $out && -z $force ]] && continue
+         # 有 GPT 修過接縫的版本就走無縫流程（tools/seam.py）
+         if [[ -f work/gen/seam_$n.png ]]; then python3 tools/seam.py build ${n#bg}; continue; fi
          python3 -c "from PIL import Image; im=Image.open('$f').convert('RGB'); im=im.resize((1280, round(im.height*1280/im.width)), Image.LANCZOS); im.save('$out','WEBP',quality=80,method=6)"; echo "bg $n"; continue;;
     title*) out=art/ui/$n.webp
          [[ -f $out && -z $force ]] && continue

@@ -10,29 +10,36 @@
 <meta property="og:description" content="打倒改稿單、奧客電話和無限會議，準時下班！">
 <meta property="og:image" content="art/ui/title.webp">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div id="app">
   <header id="top">
-    <div class="stage"><b id="stDay">週一</b><span id="stCode">1-1</span><span id="stName">打卡</span></div>
+    <div class="stage"><b id="stDay">週一</b><div class="stInfo"><span id="stCode">1-1</span><span id="stName">打卡</span></div></div>
     <div id="waves"></div>
-    <div class="gold"><i>💰</i><b id="gold">0</b></div>
+    <div class="gold" id="goldBox"><i class="coin"></i><b id="gold">0</b></div>
     <button id="btnSet" class="icon" aria-label="設定">⚙️</button>
   </header>
   <div id="stageWrap">
     <canvas id="cv"></canvas>
-    <div id="hint" hidden></div>
-    <button id="btnBoss" hidden>⚔️ 再次挑戰頭目</button>
+    <div id="celebrate" hidden><div class="cb"><div class="ic"></div><div class="tx"><b></b><small></small></div></div></div>
+    <div id="buffs"><span id="bfGold" title="薪水加倍" hidden></span><span id="bfAspd" title="攻速提升" hidden></span><span id="bfAtk" title="攻擊加倍" hidden></span></div>
+    <div id="tips"><div id="hint" hidden></div><div id="toasts"></div></div>
   </div>
   <div id="team"></div>
-  <div id="ultRow"><label id="autoWrap" hidden><input type="checkbox" id="autoUlt"> 自動大招</label><span id="dps"></span></div>
+  <div id="ultRow">
+    <label class="sw" id="autoWrap" hidden><input type="checkbox" id="autoUlt"><i></i>自動大招</label>
+    <label class="sw" id="autoBuyWrap" hidden><input type="checkbox" id="autoBuy"><i></i>自動升級</label>
+    <button id="cheer" class="chip" hidden></button>
+    <span id="dps"></span>
+    <button id="btnBoss" hidden>⚔️ 挑戰頭目</button>
+  </div>
   <main id="panel"></main>
   <nav id="tabs">
-    <button data-tab="staff" class="on">👥<span>員工</span></button>
-    <button data-tab="office">🏢<span>辦公室</span></button>
-    <button data-tab="quest">📋<span>任務</span><i class="dot" id="questDot" hidden></i></button>
-    <button data-tab="loot">🏆<span>收藏</span></button>
+    <button data-tab="staff" class="on"><em>👥</em><span>員工</span><i class="dot" id="staffDot" hidden></i></button>
+    <button data-tab="office"><em>🏢</em><span>辦公室</span><i class="dot" id="officeDot" hidden></i></button>
+    <button data-tab="quest"><em>📋</em><span>任務</span><i class="dot" id="questDot" hidden></i></button>
+    <button data-tab="loot"><em>🏆</em><span>收藏</span></button>
   </nav>
 </div>
 
@@ -41,12 +48,14 @@
   <div class="titleBox">
     <h1><small>a4 不想上班 出品</small>不想上班！<br>放置辦公室</h1>
     <p>打倒改稿單、奧客電話和無限會議，<br>帶大家準時下班！</p>
+    <div class="load" id="load"><i id="loadBar"></i></div>
     <button id="btnStart" class="big">開始上班</button>
     <p class="note">免費・不用登入・進度存在這台裝置</p>
   </div>
 </div>
 
 <div id="story" class="overlay" hidden>
+  <button id="btnSkip" class="skip">跳過 ⏭</button>
   <div class="dlg">
     <div class="who"><div class="face"></div><b class="name"></b></div>
     <p class="text"></p>
@@ -55,12 +64,10 @@
 </div>
 
 <div id="modal" class="overlay" hidden><div class="box"></div></div>
-<div id="toasts"></div>
-
-<script src="js/data.js?v=3"></script>
-<script src="js/engine.js?v=3"></script>
-<script src="js/audio.js?v=3"></script>
-<script src="js/render.js?v=3"></script>
-<script src="js/ui.js?v=3"></script>
+<script src="js/data.js?v=5"></script>
+<script src="js/engine.js?v=5"></script>
+<script src="js/audio.js?v=5"></script>
+<script src="js/render.js?v=5"></script>
+<script src="js/ui.js?v=5"></script>
 </body>
 </html>
