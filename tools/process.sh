@@ -10,6 +10,8 @@ for f in work/gen/*.png; do
     base_*) continue;;
     atk_*) out=art/char/${n}.webp; h=420;;
     pro_*) out=art/char/${n}.webp; h=420;;
+    t_chest_*) out=art/item/${n#t_}.webp; h=160;;
+    t_*) out=art/item/${n#t_}.webp; h=128;;
     e_*) out=art/enemy/${n#e_}.webp; h=300;;
     b_*) out=art/enemy/${n}.webp; h=440;;
     bonus_*) out=art/ui/${n}.webp; h=160;;

@@ -4,7 +4,7 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
-  G.VERSION = 'v1.1.1';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
+  G.VERSION = 'v1.2.0';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
   const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
 
@@ -36,12 +36,23 @@
     return `background-image:url(art/char/${pro ? 'pro_' : ''}${id}.webp);background-size:${size}% auto;background-position:${fx}% ${fy}%`;
   }
 
+  // ---------- 寶物 ----------
+  const TRE = {}; D.TREASURES.forEach(t => { TRE[t.id] = t; });
+  const itemImg = id => `art/item/${id}.webp`;
+  function fxText(fx, mul = 1) {
+    return Object.entries(fx).map(([k, v]) => {
+      const [nm, u] = D.FX_TEXT[k] || [k, '%'];
+      return u === '秒' ? `${nm} +${Math.round(v * mul)} 秒` : `${nm} +${Math.round(v * mul * 100)}%`;
+    }).join('、');
+  }
+  const starMul = st => 1 + D.CHEST.starMul * (Math.max(1, st) - 1);
+  const stars = (st, max = D.CHEST.maxStar) => '★'.repeat(st) + '<i>' + '★'.repeat(Math.max(0, max - st)) + '</i>';
+
   // ---------- 存檔 ----------
   function loadSave() {
     try {
       const raw = localStorage.getItem(KEY); if (!raw) return null;
-      const s = JSON.parse(raw), base = E.newSave();
-      return Object.assign(base, s, { heroes: Object.assign(base.heroes, s.heroes), stats: Object.assign(base.stats, s.stats) });
+      return E.fixSave(JSON.parse(raw));
     } catch (e) { return null; }
   }
   let resetting = false;
@@ -93,16 +104,18 @@
 
   // ---------- 慶祝橫幅（升職、戰利品、打倒頭目；排隊播，不擋操作）----------
   const cbQ = []; let cbT = 0;
-  function celebrate(icon, title, sub, face) {
+  function celebrate(icon, title, sub, face, img) {
     if (cbQ.length >= 3) cbQ.shift();
-    cbQ.push({ icon, title, sub, face });
+    cbQ.push({ icon, title, sub, face, img });
   }
   function showCelebrate() {
     const c = cbQ.shift(), el = $('#celebrate');
     if (!c) return;
     const ic = el.querySelector('.ic');
+    ic.classList.remove('face', 'item');
     if (c.face) { ic.textContent = ''; ic.setAttribute('style', faceStyle(c.face, 200)); ic.classList.add('face'); }
-    else { ic.removeAttribute('style'); ic.classList.remove('face'); ic.textContent = c.icon; }
+    else if (c.img) { ic.textContent = ''; ic.setAttribute('style', `background-image:url(${c.img})`); ic.classList.add('item'); }
+    else { ic.removeAttribute('style'); ic.textContent = c.icon; }
     el.querySelector('b').textContent = c.title;
     el.querySelector('small').textContent = c.sub || '';
     el.hidden = false;
@@ -156,6 +169,8 @@
     if (top.autoUlt.checked !== !!s.autoUlt) top.autoUlt.checked = !!s.autoUlt;
     if (top.autoBuy.checked !== !!s.autoBuy) top.autoBuy.checked = !!s.autoBuy;
     if (!s.farming) setText(top.dps, '團隊輸出 ' + G.fmt(game.teamDps()) + '/秒');
+    const chN = game.chestCount();
+    hide(top.btnChest, !chN); if (chN) { setText(top.chestN, String(chN)); cls(top.btnChest, 'gold', s.chests.gold > 0); }
     const cn = game.cheerN ? game.cheerN() : 0;
     hide(top.cheer, !cn); if (cn) setText(top.cheer, '📣×' + (+game.cheerMul().toFixed(1)));
     // 解鎖自動升級
@@ -164,6 +179,7 @@
     let ht = '';
     if (paused) ht = '';
     else if (game.bonuses && game.bonuses.length && !seen('tut_bonus')) ht = '🛵 外送來了！快點它拿獎勵';
+    else if (chN && !seen('tut_open')) ht = '🎁 拿到寶箱了！點下方「寶箱」打開';
     else if (s.stats.taps < 8 && s.stats.play < 90 && game.phase === 'fight') ht = '👆 點怪物「催稿」一起打！';
     else if (game.heroes.some(h => game.canUlt(h)) && s.stats.ults < 2 && !s.autoUlt) ht = '⚡ 頭像亮了！點頭像放大招';
     hide(top.hint, !ht); if (ht) setText(top.hint, ht);
@@ -318,12 +334,30 @@
         };
       });
     } else if (tab === 'loot') {
-      p.insertAdjacentHTML('beforeend', `<div class="secT">頭目戰利品（永久加成）</div><div class="lootGrid">${D.LOOT.map(l => `<div class="loot ${game.s.loot.includes(l.id) ? '' : 'no'}"><div class="ic">${l.icon}</div><b>${game.s.loot.includes(l.id) ? l.name : '？？？'}</b>${game.s.loot.includes(l.id) ? l.desc : '打倒 ' + D.ENEMIES[l.boss].name + ' 取得'}</div>`).join('')}</div>`);
+      const T = game.s.treasures, own = game.treasureCount(), sets = game.setsDone();
+      const chN = game.chestCount();
+      p.insertAdjacentHTML('beforeend', `<div class="chestBar"><div class="cb1"><b>🎁 寶箱</b><span>木箱 ${game.s.chests.wood || 0}・金箱 ${game.s.chests.gold || 0}</span></div><button class="buy ${chN ? 'can' : ''}" id="tOpen" ${chN ? '' : 'disabled'}>${chN ? '打開寶箱' : '打怪會掉寶箱'}</button></div>`);
+      const tot = game._ts || {}; game.tSum('atk');
+      const sum = fxText(Object.fromEntries(Object.entries(game._ts || {}).filter(([, v]) => v > 0)));
+      p.insertAdjacentHTML('beforeend', `<div class="tip">已收集 <b>${own} / ${D.TREASURES.length}</b> 種寶物・重複拿到會升星（最多 ★${D.CHEST.maxStar}）<br>${sum ? '目前加成：' + sum : '寶物是永久加成，越收越強！'}</div>`);
+      p.insertAdjacentHTML('beforeend', `<div class="secT">套裝（三件湊齊再加成）</div><div class="sets">${D.SETS.map(set => {
+        const n = set.items.filter(id => T[id]).length, done = n === set.items.length;
+        return `<div class="set ${done ? 'done' : ''}"><div class="si">${set.items.map(id => `<i class="${T[id] ? '' : 'no'}" style="background-image:url(${itemImg(id)})"></i>`).join('')}</div><b>${set.name}</b><small>${done ? '✅ ' : n + '/3・'}${set.desc}</small></div>`;
+      }).join('')}</div>`);
+      [3, 2, 1, 0].forEach(rar => {
+        const R0 = D.RARITY[rar], list = D.TREASURES.filter(t => t.rar === rar);
+        p.insertAdjacentHTML('beforeend', `<div class="secT" style="color:${R0.color}">${R0.name}${rar === 3 ? '（打倒頭目取得）' : ''}</div><div class="tgrid">${list.map(t => {
+          const st = T[t.id] || 0;
+          return `<button class="titem r${rar} ${st ? '' : 'no'}" data-t="${t.id}"><i style="background-image:url(${itemImg(t.id)})"></i><span>${st ? t.name : '？？？'}</span><em>${st ? stars(st) : ''}</em></button>`;
+        }).join('')}</div>`);
+      });
+      p.querySelectorAll('.titem').forEach(b => b.onclick = () => treasureInfo(b.dataset.t));
+      const ob = $('#tOpen'); if (ob) ob.onclick = () => openChestUI();
       p.insertAdjacentHTML('beforeend', `<div class="secT">員工名冊</div>` + D.HEROES.map(h => {
         const lv = game.s.heroes[h.id], r = lv ? game.rank(lv) : 0;
         return `<div class="card"><img src="art/char/${lv && r >= 2 ? 'pro_' : ''}${h.id}.webp" alt="${h.name}" style="${lv ? '' : 'filter:brightness(0) opacity(.35)'}"><div><b>${h.name}</b>　<small>${h.job}・${h.role}</small><div class="d">${lv ? `目前職位：<b>${h.ranks[r]}</b><br>升職路線：${h.ranks.join(' → ')}<br>口頭禪：「${h.lines[Math.floor(Math.random() * h.lines.length)]}」` : '尚未加入'}</div></div></div>`;
       }).join(''));
-      p.insertAdjacentHTML('beforeend', `<div class="secT">上班紀錄</div><div class="tip">上班時間 ${Math.floor(game.s.stats.play / 60)} 分鐘・打倒 ${G.fmt(game.s.stats.kills)} 個工作怪・大招 ${game.s.stats.ults} 次・催稿 ${G.fmt(game.s.stats.taps)} 次・最遠 ${E.stageName(game.s.maxStage).code}</div>`);
+      p.insertAdjacentHTML('beforeend', `<div class="secT">上班紀錄</div><div class="tip">上班時間 ${Math.floor(game.s.stats.play / 60)} 分鐘・打倒 ${G.fmt(game.s.stats.kills)} 個工作怪・大招 ${game.s.stats.ults} 次・催稿 ${G.fmt(game.s.stats.taps)} 次・開寶箱 ${game.s.stats.chests || 0} 個・最遠 ${E.stageName(game.s.maxStage).code}</div>`);
     }
     p.scrollTop = keep;
     updatePanel();
@@ -417,9 +451,93 @@
     hide(tabs.staffDot, auto || tab === 'staff' || !D.ORDER.some(id => s.heroes[id] > 0 && game.heroCost(id) <= s.gold));
     hide(tabs.officeDot, auto || tab === 'office' || !officeAffordable());
     hide(tabs.questDot, tab === 'quest' || !questReady());
+    hide(tabs.lootDot, tab === 'loot' || !game.chestCount());
     cls(tabs.staff, 'point', tt === 'tab:staff');
   }
   const tabs = {};
+
+  // ---------- 寶物詳情 ----------
+  function treasureInfo(id) {
+    const t = TRE[id], st = game.s.treasures[id] || 0, R0 = D.RARITY[t.rar];
+    if (!st) { toast(t.rar === 3 ? `🔒 打倒「${D.ENEMIES[t.boss].name}」取得` : '🔒 還沒拿到，打怪掉的寶箱有機會開到'); return; }
+    const set = D.SETS.find(x => x.items.includes(id));
+    modal(`<div class="tinfo r${t.rar}"><i style="background-image:url(${itemImg(id)})"></i></div><h2>${t.name}</h2><p class="tstar">${stars(st)}</p>
+      <p><span class="rtagI" style="background:${R0.color}">${R0.name}</span></p><p><b>${fxText(t.fx, starMul(st))}</b></p>
+      ${st < D.CHEST.maxStar ? `<p class="small">下一星：${fxText(t.fx, starMul(st + 1))}</p>` : '<p class="small">已滿星！再拿到會換成薪水</p>'}
+      <p class="lore">「${t.lore}」</p>${set ? `<p class="small">套裝「${set.name}」：${set.desc}</p>` : ''}`, [['關閉', true]]);
+  }
+
+  // ---------- 開寶箱 ----------
+  const CU = {};
+  let cuBusy = false;
+  function openChestUI() {
+    G.Audio.unlock();
+    if (!game.chestCount()) { toast('目前沒有寶箱，打怪會掉喔！'); return; }
+    mark('tut_open');
+    paused = true;
+    CU.el.hidden = false; CU.list.hidden = true; CU.reveal.hidden = true; CU.stage.hidden = false;
+    nextChest();
+  }
+  function nextChest() {
+    const c = game.s.chests, kind = c.gold > 0 ? 'gold' : 'wood';
+    CU.kind = kind;
+    CU.chest.style.backgroundImage = `url(art/item/chest_${kind}.webp)`;
+    CU.chest.className = 'chestImg idle ' + kind;
+    CU.reveal.hidden = true; CU.stage.className = 'cstage';
+    setText(CU.info, `${D.CHEST.kinds[kind].name}・剩 ${game.chestCount()} 個寶箱`);
+    CU.open.textContent = '打開'; CU.open.disabled = false;
+    CU.all.hidden = game.chestCount() < 2;
+  }
+  function revealOne() {
+    if (cuBusy) return;
+    if (!CU.reveal.hidden) { if (game.chestCount()) nextChest(); else closeChestUI(); return; }
+    cuBusy = true;
+    CU.chest.className = 'chestImg shake ' + CU.kind;
+    G.Audio.play('whoosh');
+    setTimeout(() => {
+      const r = game.openChest(CU.kind);
+      for (const e of game.events) handle(e); game.events.length = 0;
+      cuBusy = false;
+      if (!r) { closeChestUI(); return; }
+      showReveal(r);
+    }, 650);
+  }
+  function showReveal(r) {
+    const t = r.t, R0 = D.RARITY[t.rar];
+    CU.chest.className = 'chestImg open ' + CU.kind;
+    CU.stage.className = 'cstage r' + t.rar;
+    CU.reveal.hidden = false;
+    CU.rimg.style.backgroundImage = `url(${itemImg(t.id)})`;
+    CU.rtag.textContent = r.maxed ? '已滿星' : r.isNew ? 'NEW！' : '升星！';
+    CU.rtag.style.background = r.maxed ? '#8a7461' : r.isNew ? '#ff3d6e' : R0.color;
+    CU.rname.textContent = `${R0.name}・${t.name}`; CU.rname.style.color = R0.color;
+    CU.rstar.innerHTML = stars(r.star);
+    CU.rfx.textContent = r.maxed ? `換成薪水 +${G.fmt(r.gold)}` : fxText(t.fx, starMul(r.star)) + (r.setDone ? `　🎉 套裝「${r.setDone.name}」完成！` : '');
+    CU.rlore.textContent = `「${t.lore}」`;
+    G.Audio.play(t.rar >= 2 ? 'fanfare' : t.rar === 1 ? 'levelup' : 'bonus');
+    if (t.rar >= 2) confetti(CU.stage);
+    const left = game.chestCount();
+    CU.open.textContent = left ? `再開一個（剩 ${left}）` : '收下';
+    CU.all.hidden = left < 2;
+    setText(CU.info, '');
+  }
+  function openAll() {
+    if (cuBusy) return;
+    const res = [];
+    for (let i = 0; i < 200 && game.chestCount(); i++) { const r = game.openChest(); if (r) res.push(r); }
+    for (const e of game.events) handle(e); game.events.length = 0;
+    CU.stage.hidden = true; CU.list.hidden = false;
+    const best = Math.max(...res.map(r => r.t.rar));
+    CU.list.innerHTML = res.sort((a, b) => b.t.rar - a.t.rar).map(r => `<div class="li r${r.t.rar}"><i style="background-image:url(${itemImg(r.t.id)})"></i><span>${r.t.name}</span><em>${r.maxed ? '💰' : r.isNew ? 'NEW' : '★' + r.star}</em></div>`).join('');
+    setText(CU.info, `打開了 ${res.length} 個寶箱`);
+    CU.open.textContent = '收下'; CU.all.hidden = true;
+    G.Audio.play(best >= 2 ? 'fanfare' : 'levelup');
+    if (best >= 2) confetti(CU.el.querySelector('.cbox'));
+  }
+  function closeChestUI() {
+    CU.el.hidden = true; paused = storyQ.length > 0 || !$('#modal').hidden;
+    if (tab === 'loot') buildPanel();
+  }
 
   // ---------- 打不過頭目 ----------
   function failSheet(e) {
@@ -460,6 +578,7 @@
       case 'stage': {
         const ch = E.chapterOf(e.s);
         if (e.s < 50 && e.s % 10 === 0 && !game.s.farming) story('intro' + ch);
+        if (e.s < 50 && e.s % 10 === 4 && !game.s.farming) story('mid' + ch);
         break;
       }
       case 'wave': if (e.boss) { A.play('boss'); const s = game.s.stage; if (s < 50) story('boss_' + D.CHAPTERS[E.chapterOf(s)].boss); } break;
@@ -480,7 +599,16 @@
       }
       case 'quest': A.play('coin'); toast(`📋 任務完成！薪水 +${G.fmt(e.gold)}`, 'good'); break;
       case 'shieldBreak': A.play(e.timeout ? 'hurt' : 'shield'); break;
-      case 'loot': celebrate(e.loot.icon, `取得「${e.loot.name}」`, e.loot.desc); break;
+      case 'chest':
+        A.play('coin');
+        if (!seen('tut_chest')) story('tut_chest');
+        break;
+      case 'treasure':
+        if (e.src === 'boss') { celebrate('', `神器「${e.t.name}」${e.isNew ? '' : '升星！'}`, fxText(e.t.fx, starMul(e.star)), null, itemImg(e.t.id)); buildPanelSoon(); }
+        else if (e.auto) { toast(`🎁 自動開箱：${e.t.name} ${e.maxed ? '（換薪水）' : e.isNew ? 'NEW！' : '★' + e.star}`, e.t.rar >= 2 ? 'bonus' : 'good'); }
+        if (e.setDone && e.src !== 'boss' && !e.auto) {} else if (e.setDone) celebrate('🧩', `套裝「${e.setDone.name}」完成！`, e.setDone.desc);
+        break;
+      case 'bossPhase': A.play('boss'); if (navigator.vibrate) try { navigator.vibrate([30, 40, 30]); } catch (er) {} break;
       case 'join': A.play('join'); if (e.id === 'jie') story('join_jie'); buildPanelSoon(); break;
       case 'goldrain': rnd.nums.push({ x: 240, y: 70, v: e.gold, t: 0, crit: true, gold: true }); A.play('coin'); break;
       case 'bonusSpawn': A.play('whoosh'); break;
@@ -562,8 +690,14 @@
     game.events.length = 0;
     goldShown = game.s.gold;
     rnd = new G.Render.Renderer($('#cv'), game);
-    Object.assign(top, { day: $('#stDay'), code: $('#stCode'), name: $('#stName'), waves: $('#waves'), gold: $('#gold'), goldBox: $('#goldBox'), btnBoss: $('#btnBoss'), dps: $('#dps'), autoWrap: $('#autoWrap'), autoBuyWrap: $('#autoBuyWrap'), autoUlt: $('#autoUlt'), autoBuy: $('#autoBuy'), hint: $('#hint'), cheer: $('#cheer'), buff: { gold: $('#bfGold'), aspd: $('#bfAspd'), atk: $('#bfAtk') } });
-    Object.assign(tabs, { staffDot: $('#staffDot'), officeDot: $('#officeDot'), questDot: $('#questDot'), staff: $('#tabs [data-tab="staff"]') });
+    Object.assign(top, { day: $('#stDay'), code: $('#stCode'), name: $('#stName'), waves: $('#waves'), gold: $('#gold'), goldBox: $('#goldBox'), btnBoss: $('#btnBoss'), dps: $('#dps'), autoWrap: $('#autoWrap'), autoBuyWrap: $('#autoBuyWrap'), autoUlt: $('#autoUlt'), autoBuy: $('#autoBuy'), hint: $('#hint'), btnChest: $('#btnChest'), chestN: $('#chestN'), cheer: $('#cheer'), buff: { gold: $('#bfGold'), aspd: $('#bfAspd'), atk: $('#bfAtk') } });
+    Object.assign(tabs, { staffDot: $('#staffDot'), officeDot: $('#officeDot'), questDot: $('#questDot'), lootDot: $('#lootDot'), staff: $('#tabs [data-tab="staff"]') });
+    Object.assign(CU, { el: $('#chestUI'), stage: $('#chestUI .cstage'), chest: $('#chestUI .chestImg'), reveal: $('#chestUI .reveal'), rimg: $('#chestUI .rimg'), rtag: $('#chestUI .rtag'), rname: $('#chestUI .rname'), rstar: $('#chestUI .rstar'), rfx: $('#chestUI .rfx'), rlore: $('#chestUI .rlore'), list: $('#chestUI .clist'), info: $('#chestUI .cinfo'), open: $('#cOpen'), all: $('#cAll') });
+    CU.open.onclick = () => { if (!CU.list.hidden) { closeChestUI(); return; } revealOne(); };
+    CU.chest.onclick = () => { if (CU.reveal.hidden) revealOne(); };
+    CU.all.onclick = openAll;
+    $('#cClose').onclick = closeChestUI;
+    $('#btnChest').onclick = openChestUI;
     buildTeam(); buildPanel();
     $('#tabs').addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b || b.dataset.tab === tab) return;

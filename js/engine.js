@@ -9,7 +9,8 @@
     return {
       v: 1, stage: 0, maxStage: 0, gold: 0, farming: false, autoUlt: false, autoBoss: true, autoBuy: false,
       heroes: { mi: 1, kui: 1, jie: 0, vivi: 0 }, office: {}, perk: {}, tapLv: 1, loot: [],
-      stats: { kills: 0, ults: 0, taps: 0, play: 0, bonus: 0 }, quests: {}, seen: {}, cleared: false,
+      treasures: {}, chests: { wood: 0, gold: 0 },
+      stats: { kills: 0, ults: 0, taps: 0, play: 0, bonus: 0, chests: 0 }, quests: {}, seen: {}, cleared: false,
       cheer: { n: 0, calm: 0 }
     };
   }
@@ -17,11 +18,14 @@
   function fixSave(s) {
     const base = newSave();
     if (!s) return base;
-    return Object.assign(base, s, {
+    const out = Object.assign(base, s, {
       heroes: Object.assign(base.heroes, s.heroes), stats: Object.assign(base.stats, s.stats),
       office: s.office || {}, perk: s.perk || {}, loot: s.loot || [], quests: s.quests || {}, seen: s.seen || {},
-      cheer: Object.assign(base.cheer, s.cheer)
+      cheer: Object.assign(base.cheer, s.cheer), treasures: s.treasures || {}, chests: Object.assign(base.chests, s.chests)
     });
+    // v1.1 以前的頭目戰利品 → 同名神器
+    for (const id of out.loot) if (D.TREASURES.some(t => t.id === id) && !out.treasures[id]) out.treasures[id] = 1;
+    return out;
   }
 
   const chapterOf = s => Math.min(Math.floor(s / 10), 4);
@@ -53,7 +57,24 @@
     perk(id) { return this.s.perk[id] || 0; }
     // 自己買的等級 + 公司福利送的等級（福利不影響價格）
     officeBonus(id) { return (this.office(id) + this.perk(id)) * D.OFFICE.find(o => o.id === id).per; }
-    lootSum(k) { return this.s.loot.reduce((a, id) => a + ((D.LOOT.find(l => l.id === id) || {})[k] || 0), 0); }
+    // 寶物加成：每件 fx × (1 + 0.5 × (星數 - 1))，再加上湊齊的套裝（有快取，寶物變動時 _tsVer + 1）
+    tSum(k) {
+      if (this._tsKey !== this._tsVer || !this._ts) this.calcTreasure();
+      return this._ts[k] || 0;
+    }
+    calcTreasure() {
+      const out = {}, T = this.s.treasures;
+      for (const t of D.TREASURES) {
+        const st = T[t.id] || 0; if (!st) continue;
+        const m = 1 + D.CHEST.starMul * (st - 1);
+        for (const k in t.fx) out[k] = (out[k] || 0) + t.fx[k] * m;
+      }
+      for (const set of D.SETS) if (set.items.every(id => T[id])) for (const k in set.fx) out[k] = (out[k] || 0) + set.fx[k];
+      this._ts = out; this._tsKey = this._tsVer;
+    }
+    lootSum(k) { return this.tSum(k); }
+    setsDone() { return D.SETS.filter(set => set.items.every(id => this.s.treasures[id])); }
+    treasureCount() { return Object.keys(this.s.treasures).filter(id => this.s.treasures[id] > 0).length; }
     rank(lv) { let r = 0; C.rankAt.forEach((a, i) => { if (lv >= a && a > 0) r = i; }); return r; }
     // 同事打氣：打輸或第一次過關打太久就 +1 層（攻擊、血量、薪水都加），之後順利過關慢慢退掉
     cheerN() { return this.s.cheer.n || 0; }
@@ -65,27 +86,31 @@
       this.emit({ type: 'cheer', n: c.n, why, mul: this.cheerMul() });
       this.refreshHp();
     }
-    atkMul() { return (1 + this.officeBonus('coffee') + this.lootSum('atk')) * this.cheerMul(); }
-    hpMul() { return (1 + this.officeBonus('chair') + this.lootSum('hp')) * this.cheerMul(); }
+    atkMul() { return (1 + this.officeBonus('coffee') + this.tSum('atk')) * this.cheerMul(); }
+    hpMul() { return (1 + this.officeBonus('chair') + this.tSum('hp')) * this.cheerMul(); }
     goldMul() {
-      let m = 1 + this.officeBonus('bonus') + (this.s.heroes.vivi > 0 ? 0.25 : 0);
-      m += this.s.loot.filter(id => id !== 'badge').reduce((a, id) => a + ((D.LOOT.find(l => l.id === id) || {}).gold || 0), 0);
-      if (this.s.stage >= 50 && this.s.loot.includes('badge')) m += 0.5;
+      let m = 1 + this.officeBonus('bonus') + (this.s.heroes.vivi > 0 ? 0.25 : 0) + this.tSum('gold');
+      if (this.s.stage >= 50) m += this.tSum('ot');
       return m * (1 + this.cheerN() * D.CHEER.gold);
     }
+    aspdBase() { return 1 + this.officeBonus('keyboard') + this.tSum('aspd'); }
+    chargeMul() { return 1 + this.officeBonus('drink') + this.tSum('charge'); }
+    viviMul() { return 1 + 0.8 * (1 + this.tSum('viviBuff')); }
+    bossTime() { return C.bossTime + this.tSum('time'); }
     buffMul(k) { return this.buffs[k].t > 0 ? this.buffs[k].mul : 1; }
     // 戰鬥中暫時的攻擊倍率（畫大餅、外送）
-    fightAtkMul() { return (this.buffT > 0 ? 1.8 : 1) * this.buffMul('atk'); }
+    fightAtkMul() { return (this.buffT > 0 ? this.viviMul() : 1) * this.buffMul('atk'); }
     // 前輩帶新人：等級比全隊最高低的員工，能力用「自己 + (最高 - 自己) × mentor」的等級計算（升職仍看自己的等級）
     topLv() { return Math.max(...D.ORDER.map(id => this.s.heroes[id])); }
     effLv(id) { const lv = this.s.heroes[id], top = this.topLv(); return lv + Math.max(0, top - lv) * C.mentor; }
     heroAtk(id) {
       const lv = this.s.heroes[id], def = D.HEROES.find(h => h.id === id);
-      return C.heroAtk(def.atk, this.effLv(id)) * Math.pow(C.rankMul, this.rank(lv)) * this.atkMul();
+      const own = id === 'kui' ? this.tSum('kuiAtk') : id === 'jie' ? this.tSum('jieAtk') : 0;
+      return C.heroAtk(def.atk, this.effLv(id)) * Math.pow(C.rankMul, this.rank(lv)) * this.atkMul() * (1 + own);
     }
     heroHp(id) {
       const lv = this.s.heroes[id], def = D.HEROES.find(h => h.id === id);
-      return C.heroHp(def.hp, this.effLv(id)) * Math.pow(C.rankMul, this.rank(lv)) * this.hpMul();
+      return C.heroHp(def.hp, this.effLv(id)) * Math.pow(C.rankMul, this.rank(lv)) * this.hpMul() * (1 + (id === 'mi' ? this.tSum('miHp') : 0));
     }
     heroCost(id, n = 1) {
       const def = D.HEROES.find(h => h.id === id); let lv = this.s.heroes[id], c = 0;
@@ -94,10 +119,10 @@
     }
     maxAffordable(costFn) { let n = 0, c = 0; while (n < 200) { const k = costFn(n + 1); if (k > this.s.gold) break; n++; c = k; } return [n, c]; }
     officeCost(o) { return Math.ceil(o.base * Math.pow(o.grow, this.office(o.id))); }
-    tapDmg() { return C.tapDmg(this.s.tapLv) * this.atkMul(); }
+    tapDmg() { return C.tapDmg(this.s.tapLv) * this.atkMul() * (1 + this.tSum('tap')); }
     comboMul() { return Math.min(D.COMBO.max, 1 + Math.max(0, this.combo - 1) * D.COMBO.per); }
     teamDps() {
-      return this.heroes.filter(h => this.s.heroes[h.id] > 0).reduce((a, h) => a + this.heroAtk(h.id) * h.def.aspd * (h.id === 'jie' ? 1.375 : h.id === 'kui' ? 1.3 : 1), 0) * (1 + this.officeBonus('keyboard'));
+      return this.heroes.filter(h => this.s.heroes[h.id] > 0).reduce((a, h) => a + this.heroAtk(h.id) * h.def.aspd * (h.id === 'jie' ? 1 + (0.25 + this.tSum('crit')) * 1.5 : h.id === 'kui' ? 1.3 : 1), 0) * this.aspdBase();
     }
 
     // ---------- 購買 ----------
@@ -158,6 +183,9 @@
         case 'rank': return [D.ORDER.filter(id => this.rank(s.heroes[id]) >= 1).length, q.n];
         case 'rank2': return [D.ORDER.filter(id => this.rank(s.heroes[id]) >= 2).length, q.n];
         case 'lvsum': return [D.ORDER.reduce((a, id) => a + s.heroes[id], 0), q.n];
+        case 'chests': return [s.stats.chests || 0, q.n];
+        case 'treasures': return [this.treasureCount(), q.n];
+        case 'sets': return [this.setsDone().length, q.n];
       }
       return [0, 1];
     }
@@ -210,12 +238,14 @@
         const n = [3, 3, 4, 4][this.wave] + (s >= 10 ? 1 : 0) + (s >= 30 ? 1 : 0);
         for (let i = 0; i < n; i++) list.push(pool[Math.floor(Math.random() * pool.length)]);
       }
+      const eliteI = !isBoss(s) && s >= D.ELITE.from && Math.random() < D.ELITE.chance ? Math.floor(Math.random() * list.length) : -1;
       list.forEach((k, i) => {
-        const e = this.makeEnemy(k, s, 1, ENEMY_X0 + (D.ENEMIES[k].boss ? 30 : 0) + i * 34 + Math.random() * 16, i);
-        if (e.boss) { e.skillI = 0; e.castT = D.BOSS_SKILL.first; e.cast = null; }
+        const e = this.makeEnemy(k, s, i === eliteI ? D.ELITE.hp : 1, ENEMY_X0 + (D.ENEMIES[k].boss ? 30 : 0) + i * 34 + Math.random() * 16, i);
+        if (e.boss) { e.skillI = 0; e.castT = D.BOSS_SKILL.first; e.cast = null; e.phase = 1; }
+        if (i === eliteI) { e.elite = true; e.atk *= D.ELITE.atk; }
         this.enemies.push(e);
       });
-      if (isBoss(s)) this.bossT = C.bossTime + this.lootSum('time');
+      if (isBoss(s)) this.bossT = this.bossTime();
       this.phase = 'fight';
       this.emit({ type: 'wave', wave: this.wave, boss: isBoss(s) });
       // 碎碎念：頭目登場一定講；一般關卡開打偶爾講
@@ -236,6 +266,7 @@
     // src：'tap'、英雄 id、'splash'、'jie-ult'、'kui-ult'
     damage(e, dmg, src, crit, extra) {
       if (e.dead) return;
+      if (e.boss) dmg *= 1 + this.tSum('boss');
       let absorbed = 0;
       if (e.shield > 0) {
         // 護盾：點擊 ×3、大招全額，一般攻擊只削 30%；打破後剩下的傷害才扣血
@@ -250,21 +281,69 @@
       if (absorbed) ev.shield = absorbed;
       if (extra) Object.assign(ev, extra);
       this.emit(ev);
+      if (e.boss && e.phase === 1 && e.hp > 0 && e.hp <= e.max * 0.5 && e.t.skills2) this.bossPhase(e);
       if (e.hp <= 0) {
         e.dead = true; e.cast = null;
-        const g = Math.ceil(C.gold(this.s.stage) * (e.boss ? 12 : e.minion ? 0.5 : 1) * this.goldMul() * this.buffMul('gold'));
+        const g = Math.ceil(C.gold(this.s.stage) * (e.boss ? 12 : e.elite ? D.ELITE.gold : e.minion ? 0.5 : 1) * this.goldMul() * this.buffMul('gold'));
         this.s.gold += g; this.s.stats.kills++;
         this.emit({ type: 'kill', e, gold: g });
+        this.rollChest(e);
       }
+    }
+    // 頭目血量剩一半：變身，換第二套招式、攻擊變強、很快放招
+    bossPhase(e) {
+      e.phase = 2; e.atk *= 1.3; e.skillI = 0;
+      if (!e.cast) e.castT = Math.min(e.castT, 1.2);
+      this.emit({ type: 'bossPhase', e });
+      if (e.t.phase2) this.say(e, e.t.phase2, 0, true);
+      const h = this.randHero(); if (h) this.say(h, pick(['它變身了！', '小心，要來真的了！', '血剩一半，再加把勁！', '這才是本體嗎……']), 1.6, true);
+    }
+
+    // ---------- 寶箱與寶物 ----------
+    rollChest(e) {
+      let kind = null, n = 1;
+      if (e.boss) { kind = 'gold'; n = D.CHEST.boss; }
+      else if (!e.minion) {
+        const p = (e.elite ? D.CHEST.elite : D.CHEST.drop) * (1 + this.tSum('drop'));
+        if (Math.random() < p) kind = e.elite && Math.random() < 0.25 ? 'gold' : 'wood';
+      }
+      if (!kind) return;
+      this.s.chests[kind] = (this.s.chests[kind] || 0) + n;
+      this.emit({ type: 'chest', e, kind, n });
+    }
+    chestCount() { return (this.s.chests.wood || 0) + (this.s.chests.gold || 0); }
+    // 拿到一件寶物：新的、升星，或滿星換薪水
+    grant(id, src) {
+      const t = D.TREASURES.find(x => x.id === id); if (!t) return null;
+      const T = this.s.treasures, st = T[id] || 0;
+      const r = { type: 'treasure', t, src, isNew: !st, star: st, gold: 0 };
+      if (st >= D.CHEST.maxStar) { r.gold = Math.ceil(C.gold(Math.min(this.s.maxStage, 60)) * 25 * (t.rar + 1)); this.s.gold += r.gold; r.maxed = true; }
+      else { T[id] = st + 1; r.star = st + 1; this._tsVer = (this._tsVer || 0) + 1; this.refreshHp(); }
+      if (r.isNew) { const done = this.setsDone().find(set => set.items.includes(id)); if (done) r.setDone = done; }
+      this.emit(r);
+      return r;
+    }
+    // 開一個寶箱（kind 不給就先開金箱）
+    openChest(kind) {
+      const c = this.s.chests;
+      kind = kind || (c.gold > 0 ? 'gold' : 'wood');
+      if (!(c[kind] > 0)) return null;
+      c[kind]--; this.s.stats.chests = (this.s.stats.chests || 0) + 1;
+      const w = D.CHEST.kinds[kind].w, tot = w.reduce((a, b) => a + b, 0);
+      let x = Math.random() * tot, rar = 0;
+      for (let i = 0; i < w.length; i++) { x -= w[i]; if (x <= 0) { rar = i; break; } }
+      const pool = D.TREASURES.filter(t => t.rar === rar);
+      const open = pool.filter(t => (this.s.treasures[t.id] || 0) < D.CHEST.maxStar);   // 先給還沒滿星的
+      return this.grant(pick(open.length ? open : pool).id, kind);
     }
 
     heroAttack(h) {
       const t = this.target(); if (!t) return;
       let dmg = this.heroAtk(h.id) * this.fightAtkMul(), crit = false;
-      if (h.id === 'jie' && Math.random() < 0.25) { dmg *= 2.5; crit = true; }
+      if (h.id === 'jie' && Math.random() < 0.25 + this.tSum('crit')) { dmg *= 2.5; crit = true; }
       this.shots.push({ h, t, x: h.x + 24, y: GROUND - 46, tx: t.x, ty: t.y - 40, life: 0, dur: 0.28, dmg, crit, kind: h.def.shot });
       this.emit({ type: 'shoot', h });
-      h.energy = Math.min(100, h.energy + 12 * (1 + this.officeBonus('drink')));
+      h.energy = Math.min(100, h.energy + 12 * this.chargeMul());
     }
 
     canUlt(h) { return h.on && !h.dead && h.energy >= 100 && this.phase === 'fight' && this.alive().length > 0; }
@@ -276,7 +355,8 @@
       this.emit({ type: 'ult', h, auto: !!auto });
       if (Math.random() < 0.3) this.say(h, pick(h.def.talk.ult), 0.2);
       if (id === 'mi') {
-        this.heroes.forEach(x => { if (x.on && !x.dead) x.shield = Math.max(x.shield, h.max * 0.4); });
+        const sh = h.max * 0.4 * (1 + this.tSum('miShield'));
+        this.heroes.forEach(x => { if (x.on && !x.dead) x.shield = Math.max(x.shield, sh); });
         this.alive().forEach(e => e.stun = e.boss ? 1 : 2.5); // 頭目只暈 1 秒，而且照樣放技能
       } else if (id === 'jie') {
         const t = this.alive().sort((a, b) => b.hp + b.shield - a.hp - a.shield)[0];
@@ -338,7 +418,7 @@
     collectBonus(b) {
       const kd = D.BONUS.kinds[b.kind];
       b.gone = true; this.bonuses = this.bonuses.filter(x => x !== b);
-      const gold = Math.ceil(C.gold(this.s.stage) * kd.gold * this.goldMul());
+      const gold = Math.ceil(C.gold(this.s.stage) * kd.gold * this.goldMul() * (1 + this.tSum('bonus')));
       this.s.gold += gold; this.s.stats.bonus = (this.s.stats.bonus || 0) + 1;
       const buff = kd.buff ? Object.assign({}, kd.buff) : null;
       if (buff) { const cur = this.buffs[buff.kind]; cur.mul = buff.mul; cur.t = Math.max(cur.t, buff.dur); }
@@ -373,11 +453,11 @@
 
     // ---------- 頭目技能 ----------
     updateBoss(e, dt) {
-      const sk = e.t.skills; if (!sk || !sk.length) return false;
+      const sk = e.phase === 2 && e.t.skills2 ? e.t.skills2 : e.t.skills; if (!sk || !sk.length) return false;
       if (e.shield > 0 && (e.shieldT -= dt) <= 0) { e.shield = 0; this.emit({ type: 'shieldBreak', e, timeout: true }); }
       if (e.cast) {
         e.cast.t -= dt;
-        if (e.cast.t <= 0) { const skill = e.cast.skill; e.cast = null; this.bossHit(e, skill); e.castT = D.BOSS_SKILL.every; }
+        if (e.cast.t <= 0) { const skill = e.cast.skill; e.cast = null; this.bossHit(e, skill); e.castT = D.BOSS_SKILL.every * (e.phase === 2 ? 0.75 : 1); }
         return true; // 施法中不普攻
       }
       e.castT -= dt;
@@ -425,10 +505,11 @@
     stageCleared() {
       const s = this.s.stage;
       this.emit({ type: 'clear', s, boss: isBoss(s) });
-      if (isBoss(s) && s < 50) {
-        const ch = D.CHAPTERS[chapterOf(s)];
-        const loot = D.LOOT.find(l => l.boss === ch.boss);
-        if (loot && !this.s.loot.includes(loot.id)) { this.s.loot.push(loot.id); this.emit({ type: 'loot', loot }); }
+      if (isBoss(s)) {
+        // 頭目專屬神器：主線第一次打倒取得；加班模式第一次打倒輪回來的頭目時升星
+        const bossId = s < 50 ? D.CHAPTERS[chapterOf(s)].boss : ['b_client', 'b_meeting', 'b_report', 'b_final', 'b_vivi'][Math.floor((s - 50) / 10) % 5];
+        const art = D.TREASURES.find(t => t.boss === bossId);
+        if (art && s === this.s.maxStage && (s >= 50 || !this.s.treasures[art.id])) this.grant(art.id, 'boss');
       }
       if (s === this.s.maxStage) {
         this.s.maxStage++;
@@ -478,7 +559,10 @@
       this.autoT += dt;
       if (this.autoT >= 1) {
         this.autoT = 0;
-        if (this.s.autoBuy && this.s.maxStage >= D.AUTOBUY_AT) for (let i = 0; i < 10; i++) if (!this.buyBest({ tapW: 3 })) break;
+        if (this.s.autoBuy && this.s.maxStage >= D.AUTOBUY_AT) {
+          for (let i = 0; i < 10; i++) if (!this.buyBest({ tapW: 3 })) break;
+          if (this.chestCount() && this.phase === 'fight') { const r = this.openChest(); if (r) r.auto = true; }
+        }
       }
 
       if (this.phase === 'walk') {
@@ -489,7 +573,7 @@
       if (this.phase !== 'fight') return;
       this.stageT += dt;
       if (this.buffT > 0) this.buffT -= dt;
-      const aspdMul = (1 + this.officeBonus('keyboard')) * (this.buffT > 0 ? 1.4 : 1) * this.buffMul('aspd');
+      const aspdMul = this.aspdBase() * (this.buffT > 0 ? 1.4 : 1) * this.buffMul('aspd');
 
       // 英雄
       for (const h of this.heroes) {
@@ -547,7 +631,7 @@
     hurtHero(h, dmg, e) {
       if (h.shield > 0) { const a = Math.min(h.shield, dmg); h.shield -= a; dmg -= a; }
       h.hp -= dmg;
-      if (h.id === 'mi') h.energy = Math.min(100, h.energy + 4 * (1 + this.officeBonus('drink')));
+      if (h.id === 'mi') h.energy = Math.min(100, h.energy + 4 * this.chargeMul());
       this.emit({ type: 'hurt', h, dmg, e });
       if (h.hp <= 0) {
         h.hp = 0; h.dead = true; this.emit({ type: 'down', h });

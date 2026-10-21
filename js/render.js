@@ -36,6 +36,7 @@
     Object.keys(D.ENEMIES).forEach(k => { const t = D.ENEMIES[k]; if (!t.img) l.push([k, t.boss ? `art/enemy/${k}.webp` : `art/enemy/${k.slice(2)}.webp`]); });
     for (let i = 1; i <= 5; i++) l.push(['bg' + i, `art/bg/bg${i}.webp`]);
     Object.keys(BONUS_EMOJI).forEach(k => l.push(['bonus_' + k, `art/ui/bonus_${k}.webp`]));
+    ['wood', 'gold'].forEach(k => l.push(['chest_' + k, `art/item/chest_${k}.webp`]));
     return l;
   }
 
@@ -49,7 +50,7 @@
     return 7.5625 * (k -= 2.625 / 2.75) * k + 0.984375;
   };
   const rand = (a, b) => a + Math.random() * (b - a);
-  const enemyH = e => e.boss ? BOSS_H : e.minion ? ENEMY_H * 0.8 : ENEMY_H;   // 頭目召喚的小怪畫小一點
+  const enemyH = e => e.boss ? BOSS_H : e.minion ? ENEMY_H * 0.8 : e.elite ? ENEMY_H * 1.3 : ENEMY_H;   // 頭目召喚的小怪畫小一點
   function canvas(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
   function rrect(x, x0, y0, w, h, r) {
     x.beginPath(); x.moveTo(x0 + r, y0); x.arcTo(x0 + w, y0, x0 + w, y0 + h, r); x.arcTo(x0 + w, y0 + h, x0, y0 + h, r);
@@ -144,7 +145,7 @@
   class Renderer {
     constructor(canvas, game) {
       this.cv = canvas; this.ctx = canvas.getContext('2d'); this.g = game;
-      this.fx = []; this.nums = []; this.parts = []; this.anim = new Map(); this.later = []; this.says = [];
+      this.fx = []; this.nums = []; this.parts = []; this.anim = new Map(); this.later = []; this.says = []; this.chestFx = [];
       this.bgX = 0; this.bgV = 0; this.cutin = null; this.flash = 0; this.flashC = '255,255,255'; this.t = 0; this.rt = 0; this.banner = null;
       this.trauma = 0; this.ox = 0; this.oy = 0; this.stop = 0; this.lastStop = -1;
       this.cast = null; this.combo = null; this.lastTap = [300, 180]; this.bossTrail = 1; this.ms = 0;
@@ -277,6 +278,18 @@
           this.capParts();
           break;
         }
+        case 'bossPhase': {
+          const en = e.e, H0 = enemyH(en);
+          this.banner = { text: '頭目變身！', t: 0, d: 1.6, c: '#d6a4ff' };
+          this.flash = 0.45; this.flashC = '170,80,255'; this.addShake(0.75); this.hitStop(0.12);
+          this.addFx({ k: 'ringC', x: en.x, y: en.y - H0 * 0.5, d: 0.6, c: '#c58bff', r: 130 });
+          this.burst(en.x, en.y - H0 * 0.5, ['#c58bff', '#fff', '#ff5d8f'], 26, 220, 'star');
+          break;
+        }
+        case 'chest':
+          for (let i = 0; i < Math.min(3, e.n || 1); i++) this.chestFx.push({ kind: e.kind, x: e.e.x, y: e.e.y - 50, vx: rand(-50, 10) - i * 18, vy: -170 - i * 20, t: -i * 0.12, rot: 0 });
+          this.burst(e.e.x, e.e.y - 50, e.kind === 'gold' ? ['#ffe066', '#fff'] : ['#ffcf7a', '#fff'], 10, 120, 'star');
+          break;
         case 'bonusGone': this.addFx({ k: 'bonusGone', x: e.b.x, y: e.b.y, kind: e.b.kind, d: 0.5 }); break;
         case 'say': {
           if (!e.who || !e.text) break;
@@ -378,6 +391,7 @@
       this.drawFx(adt);
       this.drawParts(adt);
       this.drawSays(dt);
+      if (this.chestFx.length) this.drawChests(adt);
       if (g.bonuses) this.drawBonuses(adt);   // 道具要點，畫在泡泡上面
       this.base();
       this.drawNums(adt);
@@ -512,8 +526,13 @@
         x.globalAlpha = 1;
       }
       if (e && e.boss) {
-        x.globalAlpha = (this.cast && this.cast.e === e ? 0.55 + Math.sin(this.rt * 18) * 0.25 : 0.32 + Math.sin(this.rt * 4) * 0.1);
-        const r = p.h * 0.62; x.drawImage(glow('rgba(255,61,110,0.9)'), e.x - r, p.foot - p.h * 0.5 - r * 1.15, r * 2, r * 2.3);
+        const p2 = e.phase === 2;
+        x.globalAlpha = (this.cast && this.cast.e === e ? 0.55 + Math.sin(this.rt * 18) * 0.25 : (p2 ? 0.55 : 0.32) + Math.sin(this.rt * (p2 ? 7 : 4)) * 0.12);
+        const r = p.h * (p2 ? 0.78 : 0.62); x.drawImage(glow(p2 ? 'rgba(150,40,255,0.95)' : 'rgba(255,61,110,0.9)'), e.x - r, p.foot - p.h * 0.5 - r * 1.15, r * 2, r * 2.3);
+        x.globalAlpha = 1;
+      } else if (e && e.elite) {
+        x.globalAlpha = 0.5 + Math.sin(this.rt * 5) * 0.15;
+        const r = p.h * 0.6; x.drawImage(glow('rgba(255,196,40,0.95)'), e.x - r, p.foot - p.h * 0.5 - r, r * 2, r * 2);
         x.globalAlpha = 1;
       }
       this.sprite(p.im, p.cx, p.foot, p.h, p);
@@ -531,8 +550,9 @@
           x.fillStyle = '#ffe066';
           for (let i = 0; i < 3; i++) { const an = this.rt * 5 + i * 2.1; x.beginPath(); x.arc(e.x + Math.cos(an) * 14, yy + 9 + Math.sin(an) * 3.5, 2, 0, 7); x.fill(); }
         }
+        if (e.elite) this.blit(this.glyph('★精英', 8, '#ffe066', '#5a3000', 3, 1), e.x, e.y - H0 - 3);
         if (!e.boss) {
-          this.bar(e.x - 16, e.y + 6, 32, 3, e.hp / e.max, '#ff6b6b');
+          this.bar(e.x - 16, e.y + 6, 32, 3, e.hp / e.max, e.elite ? '#ffb020' : '#ff6b6b');
           if (e.shield > 0 && e.shieldMax) { x.fillStyle = '#8fd8ff'; x.fillRect(e.x - 16, e.y + 3, 32 * clamp(e.shield / e.shieldMax, 0, 1), 2); }
         }
       }
@@ -756,6 +776,32 @@
         x.globalAlpha = 1;
       }
       this.says.length = n;
+    }
+    // 寶箱：彈出 → 落地彈兩下 → 飛向畫面左下（下方的寶箱按鈕）
+    drawChests(dt) {
+      let n = 0;
+      for (const c of this.chestFx) {
+        c.t += dt;
+        if (c.t < 0) { this.chestFx[n++] = c; continue; }
+        if (c.t < 1.0) {
+          c.vy += 520 * dt; c.x += c.vx * dt; c.y += c.vy * dt; c.vx *= 1 - Math.min(1, dt * 1.5);
+          if (c.y > GROUND - 2) { c.y = GROUND - 2; c.vy = -Math.abs(c.vy) * 0.42; c.vx *= 0.6; }
+          c.rot = Math.sin(c.t * 14) * 0.15 * (1 - c.t);
+        } else {
+          if (!c.fly) { c.fly = true; c.fx = c.x; c.fy = c.y; }
+          const k = Math.min(1, (c.t - 1.0) / 0.5), e = k * k;
+          c.x = c.fx + (40 - c.fx) * e; c.y = c.fy + (H + 20 - c.fy) * e - Math.sin(k * Math.PI) * 50;
+          c.rot = k * -1.2;
+          if (k >= 1) continue;
+        }
+        this.chestFx[n++] = c;
+        const im = IMG['chest_' + c.kind], h = c.kind === 'gold' ? 30 : 26;
+        const sc = c.fly ? 1 - Math.min(1, (c.t - 1) / 0.5) * 0.5 : 1;
+        if (!c.fly) { this.ctx.globalAlpha = 0.6; this.ctx.drawImage(glow(c.kind === 'gold' ? 'rgba(255,220,80,0.9)' : 'rgba(255,190,110,0.8)'), c.x - 26, c.y - h - 8, 52, 44); this.ctx.globalAlpha = 1; }
+        if (im) this.sprite(im, c.x, c.y, h * sc, { rot: c.rot });
+        else this.blit(this.glyph('🎁', 18, '#fff', null, 0, 1), c.x, c.y - 12);
+      }
+      this.chestFx.length = n;
     }
     drawCombo(dt) {
       const c = this.combo; if (!c || c.n < 2) return;

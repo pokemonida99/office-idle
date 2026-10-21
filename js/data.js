@@ -88,23 +88,39 @@
     //   summon：在頭目前面叫出 n 隻小怪擋刀（小葵範圍攻擊最好清）
     b_vivi:     { name: 'Vivi 老闆・突擊檢查', hp: 18, atk: 2.2, spd: 22, boss: true, img: 'vivi',
                   appear: ['大家都在認真上班嗎～？', '我只是路過，你們繼續～'],
-                  skills: [{ id: 'inspect', name: '突擊檢查', kind: 'aoe', delay: 2, power: 1.2, pct: 0.2, line: '我來看看大家的螢幕～' }] },
+                  skills: [{ id: 'inspect', name: '突擊檢查', kind: 'aoe', delay: 2, power: 1.2, pct: 0.2, line: '我來看看大家的螢幕～' }],
+                  title: '笑容滿面的突擊檢查', phase2: '看來要拿出真本事了～全員績效面談！',
+                  skills2: [{ id: 'review', name: '全員績效面談', kind: 'aoe', delay: 2.2, power: 1.5, pct: 0.24, line: '來，一個一個進會議室～' },
+                            { id: 'inspect', name: '突擊檢查', kind: 'aoe', delay: 2, power: 1.2, pct: 0.2, line: '我又來看螢幕囉～' }] },
     b_client:   { name: '甲方大魔王', hp: 15, atk: 2.4, spd: 20, boss: true,
                   appear: ['我要五彩斑斕的黑！', 'Logo 再大一點，但不要太大'],
-                  skills: [{ id: 'revise', name: '再改一版', kind: 'shield', delay: 2, power: 0.2, dur: 7, line: '我覺得還可以再改一版' }] },
+                  skills: [{ id: 'revise', name: '再改一版', kind: 'shield', delay: 2, power: 0.2, dur: 7, line: '我覺得還可以再改一版' }],
+                  title: '永遠不滿意的付錢的人', phase2: '我請我們主管也來看一下！',
+                  skills2: [{ id: 'boss2', name: '主管也來看', kind: 'summon', delay: 2, n: 2, minion: 'e_revise', power: 0.6, line: '我們主管說要更有質感' },
+                            { id: 'revise2', name: '預算砍半但要更好', kind: 'shield', delay: 2, power: 0.28, dur: 8, line: '預算砍半，但效果要加倍' }] },
     b_meeting:  { name: '無限會議', hp: 11, atk: 2.4, spd: 18, boss: true,
                   appear: ['我們先來對齊一下', '這個會很快，五分鐘就好'],
-                  skills: [{ id: 'more', name: '再開一個會', kind: 'summon', delay: 2, n: 3, minion: 'e_meeting', power: 0.5, line: '這個我們另外開個會討論' }] },
+                  skills: [{ id: 'more', name: '再開一個會', kind: 'summon', delay: 2, n: 3, minion: 'e_meeting', power: 0.5, line: '這個我們另外開個會討論' }],
+                  title: '沒有結束時間的會議', phase2: '時間到了，但我們延長一下！',
+                  skills2: [{ id: 'storm', name: '腦力激盪', kind: 'aoe', delay: 2.2, power: 1.5, pct: 0.22, line: '大家都要發言喔，一人一個想法' },
+                            { id: 'more2', name: '會議的會議', kind: 'summon', delay: 2, n: 4, minion: 'e_meeting', power: 0.5, line: '我們開個會討論剛剛的會' }] },
     b_report:   { name: '週報魔像', hp: 12, atk: 2.6, spd: 16, boss: true,
                   appear: ['本週工作內容，請填寫至少五百字', '週報是你成長的證明'],
-                  skills: [{ id: 'format', name: '格式不對', kind: 'aoe', delay: 2.5, power: 1.8, pct: 0.26, line: '格式不對，全部重寫' }] },
+                  skills: [{ id: 'format', name: '格式不對', kind: 'aoe', delay: 2.5, power: 1.8, pct: 0.26, line: '格式不對，全部重寫' }],
+                  title: '五百字起跳的週報', phase2: '主管已讀……並且退件！',
+                  skills2: [{ id: 'attach', name: '補附件', kind: 'shield', delay: 2, power: 0.22, dur: 7, line: '請附上佐證資料' },
+                            { id: 'reject', name: '主管退件', kind: 'aoe', delay: 2.5, power: 2.1, pct: 0.3, line: '退件，理由請自行體會' }] },
     b_final:    { name: '下班前的新需求', hp: 16, atk: 2.8, spd: 18, boss: true,
                   appear: ['這個很簡單，下班前可以給我嗎？', '17:59，叮咚——'],
                   skills: [
                     { id: 'easy', name: '這個很簡單', kind: 'shield', delay: 2, power: 0.15, dur: 7, line: '就改一個小地方而已' },
                     { id: 'group', name: '@所有人', kind: 'summon', delay: 2, n: 3, minion: 'e_chat', power: 0.4, line: '我拉個群組，大家一起討論' },
                     { id: 'tomorrow', name: '明天早上要', kind: 'aoe', delay: 2.5, power: 1.8, pct: 0.26, line: '明天早上開會要用喔' }
-                  ] }
+                  ],
+                  title: '17:59 的那封信', phase2: '欸對了，順便把簡報也改一下',
+                  skills2: [{ id: 'redo', name: '全部重做', kind: 'aoe', delay: 2.5, power: 2.2, pct: 0.3, line: '方向不對，我們從頭來過' },
+                            { id: 'ot', name: '大家留一下', kind: 'summon', delay: 2, n: 3, minion: 'e_overtime', power: 0.5, line: '今天大家辛苦一點，留一下' },
+                            { id: 'easy2', name: '就一個小地方', kind: 'shield', delay: 2, power: 0.2, dur: 7, line: '真的，就改一個小地方' }] }
   };
 
   // 五章（週一～週五），每章 10 關，每關 3 波；第 10 關是頭目（限時 30 秒）
@@ -123,7 +139,7 @@
 
   // 數值曲線（s = 0 起算的總關卡編號）
   const CURVE = {
-    enemyHp: s => 30 * Math.pow(1.355, s) * Math.pow(1.09, Math.max(0, s - 10)),
+    enemyHp: s => 30 * Math.pow(1.355, s) * Math.pow(1.09, Math.max(0, s - 10)) * Math.pow(1.05, Math.max(0, s - 15)),
     enemyAtk: s => 4 * Math.pow(1.16, s),
     gold: s => 3 * Math.pow(1.22, s),
     heroAtk: (base, lv) => base * (1 + 0.32 * (lv - 1)) * Math.pow(1.045, lv - 1) * Math.pow(1.3, Math.floor(lv / 10)),
@@ -134,7 +150,7 @@
     mentor: 0.65,                       // 前輩帶新人：低等員工補上與最高等級差距的比例
     tapDmg: lv => 4 * (1 + 0.5 * (lv - 1)) * Math.pow(1.06, lv - 1),
     tapCost: lv => Math.ceil(8 * Math.pow(1.17, lv - 1)),
-    bossTime: 30
+    bossTime: 40
   };
 
   // 辦公室升級（全隊永久加成）；unlock = 解鎖所需章節（0 起）
@@ -149,14 +165,61 @@
   // 公司福利：每第一次通過一關，已解鎖的辦公室設備都免費升 n 級（不影響購買價格）
   const PERK = { n: 1 };
 
-  // 頭目掉落戰利品（永久加成）
-  const LOOT = [
-    { id: 'fan', boss: 'b_vivi', name: 'Vivi 的金扇子', icon: '🪭', desc: '薪水收入 +20%', gold: 0.2 },
-    { id: 'black', boss: 'b_client', name: '五彩斑斕的黑色卡', icon: '🎴', desc: '全隊攻擊 +25%', atk: 0.25 },
-    { id: 'clock', boss: 'b_meeting', name: '會議室的時鐘', icon: '⏰', desc: '頭目限時 +10 秒', time: 10 },
-    { id: 'binder', boss: 'b_report', name: '完美週報', icon: '📒', desc: '全隊血量 +30%、攻擊 +15%', hp: 0.3, atk: 0.15 },
-    { id: 'badge', boss: 'b_final', name: '準時下班徽章', icon: '🏅', desc: '加班模式薪水 +50%', gold: 0.5 }
+  // 寶物：rar 0 普通、1 稀有、2 史詩、3 神器（頭目專屬掉落，寶箱開不到）
+  // fx 鍵：atk 全隊攻擊、hp 全隊血量、gold 薪水、aspd 攻速、charge 大招充能、tap 點擊傷害、boss 對頭目傷害、time 頭目限時（秒）
+  //        crit 阿傑爆擊率、drop 寶箱掉率、bonus 外送薪水、kuiAtk/jieAtk/miHp 個人攻擊血量、miShield 小米護盾、viviBuff 畫大餅加成、ot 加班模式薪水
+  // 重複拿到會升星（最多 ★5），每多一星效果 +50%；滿星再拿到換成薪水
+  const RARITY = [
+    { name: '普通', color: '#9aa4b2' },
+    { name: '稀有', color: '#3d9bff' },
+    { name: '史詩', color: '#b26bff' },
+    { name: '神器', color: '#ffb020' }
   ];
+  const TREASURES = [
+    { id: 'fan', rar: 3, boss: 'b_vivi', name: 'Vivi 的黃金扇', fx: { gold: 0.4, viviBuff: 0.3 }, lore: '搧一下，年終獎金就會「再研究」。' },
+    { id: 'black', rar: 3, boss: 'b_client', name: '五彩斑斕的黑', fx: { atk: 0.3, boss: 0.25 }, lore: '甲方夢寐以求的顏色，看久了會有呼吸感。' },
+    { id: 'clock', rar: 3, boss: 'b_meeting', name: '會議室的永恆時鐘', fx: { time: 10, aspd: 0.1 }, lore: '指針永遠停在「再五分鐘就好」。' },
+    { id: 'binder', rar: 3, boss: 'b_report', name: '完美週報', fx: { hp: 0.4, atk: 0.2 }, lore: '其實是去年的週報改日期，但主管很滿意。' },
+    { id: 'badge', rar: 3, boss: 'b_final', name: '準時下班徽章', fx: { atk: 0.25, hp: 0.25, gold: 0.25, ot: 0.5 }, lore: '傳說中的社畜勳章，全公司只有四個人拿過。' },
+    { id: 'redpen', rar: 2, name: '傳說中的紅筆', fx: { crit: 0.1, jieAtk: 0.25 }, lore: '阿傑用它圈過一萬張稿子，每一圈都是「再改」。' },
+    { id: 'mug', rar: 2, name: '無限續杯馬克杯', fx: { charge: 0.2 }, lore: '喝不完的咖啡，也下不完的班。' },
+    { id: 'headset', rar: 2, name: '黃金客服耳機', fx: { miShield: 0.5, miHp: 0.3 }, lore: '戴上它，奧客的聲音會自動變成輕音樂。' },
+    { id: 'tablet', rar: 2, name: '神之繪圖板', fx: { kuiAtk: 0.35 }, lore: '畫什麼都會被說「感覺不對」，但畫得很快。' },
+    { id: 'stamp', rar: 2, name: '老闆的印章', fx: { gold: 0.25 }, lore: '蓋下去就是「准」，可惜很少蓋。' },
+    { id: 'ctrlz', rar: 1, name: '萬用 Ctrl+Z', fx: { hp: 0.15 }, lore: '人生要是也能按一下就好了。' },
+    { id: 'swatch', rar: 1, name: 'Pantone 色票', fx: { atk: 0.12 }, lore: '「這個藍再藍一點」的時候派得上用場。' },
+    { id: 'throatdrop', rar: 1, name: '客服喉糖', fx: { miHp: 0.3, charge: 0.05 }, lore: '一天要說一千次「不好意思」的必需品。' },
+    { id: 'namecard', rar: 1, name: '燙金名片', fx: { gold: 0.12 }, lore: '職稱寫得越長，薪水不一定越多。' },
+    { id: 'umbrella', rar: 1, name: '下班的雨傘', fx: { aspd: 0.06 }, lore: '每次準時下班都會下雨，所以一直帶著。' },
+    { id: 'mrtcard', rar: 1, name: '通勤悠遊卡', fx: { drop: 0.25 }, lore: '裡面的餘額永遠只夠搭一次。' },
+    { id: 'punchclock', rar: 1, name: '老打卡鐘', fx: { time: 4 }, lore: '快五秒，所以大家都會提早打卡。' },
+    { id: 'sticky', rar: 0, name: '幸運便利貼', fx: { tap: 0.25 }, lore: '貼在螢幕上，寫著「不要生氣」。' },
+    { id: 'stapler', rar: 0, name: '紅色釘書機', fx: { atk: 0.05 }, lore: '辦公室最可靠的同事，從不請假。' },
+    { id: 'plant', rar: 0, name: '桌上的小多肉', fx: { hp: 0.06 }, lore: '整個辦公室唯一準時下班的生物。' },
+    { id: 'snack', rar: 0, name: '抽屜零食', fx: { bonus: 0.4 }, lore: '下午三點的救命糧食。' },
+    { id: 'cushion', rar: 0, name: '腰靠墊', fx: { charge: 0.05 }, lore: '老鳥設計師的腰，就靠它了。' },
+    { id: 'mousepad', rar: 0, name: '貓咪滑鼠墊', fx: { tap: 0.15, drop: 0.1 }, lore: '手腕放在肉球上，催稿都溫柔了。' },
+    { id: 'smile', rar: 0, name: '營業用微笑', fx: { miShield: 0.2 }, lore: '戴上之後，誰都看不出你想下班。' }
+  ];
+  // 套裝：三件都有就再加
+  const SETS = [
+    { id: 'designer', name: '設計師的抽屜', items: ['redpen', 'swatch', 'tablet'], fx: { kuiAtk: 0.3, jieAtk: 0.3 }, desc: '小葵、阿傑攻擊 +30%' },
+    { id: 'cs', name: '客服三寶', items: ['headset', 'throatdrop', 'smile'], fx: { miShield: 0.4, miHp: 0.4 }, desc: '小米護盾、血量 +40%' },
+    { id: 'safe', name: '老闆的保險箱', items: ['fan', 'stamp', 'namecard'], fx: { gold: 0.5 }, desc: '薪水 +50%' },
+    { id: 'home', name: '準時下班套組', items: ['punchclock', 'umbrella', 'mrtcard'], fx: { aspd: 0.15, time: 5 }, desc: '攻速 +15%、頭目限時 +5 秒' }
+  ];
+  const FX_TEXT = {
+    atk: ['全隊攻擊', '%'], hp: ['全隊血量', '%'], gold: ['薪水', '%'], aspd: ['攻速', '%'], charge: ['大招充能', '%'], tap: ['點擊傷害', '%'],
+    boss: ['對頭目傷害', '%'], time: ['頭目限時', '秒'], crit: ['阿傑爆擊率', '%'], drop: ['寶箱掉率', '%'], bonus: ['外送薪水', '%'],
+    kuiAtk: ['小葵攻擊', '%'], jieAtk: ['阿傑攻擊', '%'], miHp: ['小米血量', '%'], miShield: ['小米護盾', '%'], viviBuff: ['畫大餅效果', '%'], ot: ['加班模式薪水', '%']
+  };
+  // 寶箱：一般怪 drop、精英怪 elite 機率掉木箱；頭目掉 boss 個金箱。w = 開到各稀有度的權重（普通、稀有、史詩）
+  const CHEST = {
+    drop: 0.025, elite: 0.4, boss: 2, maxStar: 5, starMul: 0.5,
+    kinds: { wood: { name: '木頭寶箱', w: [64, 29, 7] }, gold: { name: '黃金寶箱', w: [0, 62, 38] } }
+  };
+  // 精英怪：第二章起，每波有 chance 機率出現一隻（體型大、血量 hp 倍、攻擊 atk 倍、薪水 gold 倍）
+  const ELITE = { from: 10, chance: 0.35, hp: 4, atk: 1.5, gold: 4 };
 
   // 任務：達成即可領，不限時
   const QUESTS = [
@@ -166,6 +229,7 @@
     { id: 'q4', text: '點擊「催稿」50 次', type: 'taps', n: 50, gold: 60 },
     { id: 'qb1', text: '接住 3 份外送', type: 'bonus', n: 3, gold: 100 },
     { id: 'q5', text: '升級咖啡機', type: 'office', n: 1, gold: 80 },
+    { id: 'qc1', text: '打開 1 個寶箱', type: 'chests', n: 1, gold: 120 },
     { id: 'q6', text: '打倒 Vivi 老闆', type: 'stage', n: 10, gold: 200 },
     { id: 'q7', text: '任一員工升職', type: 'rank', n: 1, gold: 300 },
     { id: 'q8', text: '擊敗 300 個工作怪', type: 'kills', n: 300, gold: 800 },
@@ -173,10 +237,13 @@
     { id: 'q10', text: '全隊等級合計 100', type: 'lvsum', n: 100, gold: 6000 },
     { id: 'q11', text: '使用 30 次大招', type: 'ults', n: 30, gold: 8000 },
     { id: 'qb2', text: '接住 20 份外送', type: 'bonus', n: 20, gold: 50000 },
+    { id: 'qc2', text: '收集 10 種寶物', type: 'treasures', n: 10, gold: 20000 },
     { id: 'q12', text: '通過週三', type: 'stage', n: 30, gold: 30000 },
+    { id: 'qc3', text: '湊齊一組套裝', type: 'sets', n: 1, gold: 40000 },
     { id: 'q13', text: '四人都升職兩次', type: 'rank2', n: 4, gold: 60000 },
     { id: 'q14', text: '擊敗 1500 個工作怪', type: 'kills', n: 1500, gold: 120000 },
     { id: 'q15', text: '通過週四', type: 'stage', n: 40, gold: 300000 },
+    { id: 'qc4', text: '收集 20 種寶物', type: 'treasures', n: 20, gold: 500000 },
     { id: 'q16', text: '準時下班！通過週五', type: 'stage', n: 50, gold: 1000000 }
   ];
 
@@ -205,23 +272,29 @@
 
   // 劇情（章節開頭、頭目登場、頭目擊敗）
   const STORY = {
-    intro0: [['kui', '早安～今天是我上班第一週！'], ['mi', '早安。電話已經響了 37 通了。'], ['kui', '欸？才九點耶？'], ['sys', '點畫面可以「催稿」幫忙打怪，連點傷害更高！外送飛過來記得點，賺到的薪水拿去幫大家升級吧！']],
+    intro0: [['kui', '早安～今天是我上班第一週！'], ['mi', '早安。電話已經響了 37 通了。'], ['kui', '欸？才九點耶？'], ['mi', '這間公司的電話是從昨天晚上一路響到現在的。'], ['sys', '點畫面可以「催稿」幫忙打怪，連點傷害更高！外送飛過來記得點，賺到的薪水拿去幫大家升級吧！']],
     join_jie: [['jie', '……吵死了，誰把我的咖啡打翻了？'], ['kui', '阿傑前輩！'], ['jie', '讓開，這種怪我十年前就打過了。'], ['sys', '阿傑加入了！他會爆擊，大招「一稿過」專打頭目。']],
-    boss_b_vivi: [['vivi', '大家都在認真上班嗎～？我來突擊檢查囉！'], ['jie', '……又來了。'], ['sys', '頭目戰限時 30 秒。頭目放招前會先預警，趁機放大招或狂點！打不贏也沒關係，回去練功時同事會幫你打氣。']],
-    win_b_vivi: [['vivi', '不錯嘛！看來公司有你們很安心～'], ['vivi', '好，我也下去一起做！'], ['sys', 'Vivi 老闆加入了！大招「畫大餅」讓全隊攻擊暴增。'], ['sys', '解鎖：自動大招（已經幫你打開）、辦公室「人體工學椅」「年終獎金池」']],
-    intro1: [['mi', '週二。客戶說 Logo 要再大一點。'], ['kui', '已經佔滿整張海報了啊……'], ['jie', '那就改回第一版，他們會說很好。']],
-    boss_b_client: [['sys', '甲方大魔王：「我要五彩斑斕的黑，而且要有呼吸感。」'], ['kui', '呼、呼吸感？'], ['vivi', '照他說的做！他付錢的！'], ['sys', '甲方會「再改一版」張開護盾：狂點或放大招可以打破！']],
-    win_b_client: [['jie', '最後他選了第一版。'], ['kui', '每次都這樣嗎？'], ['jie', '每次都這樣。']],
-    intro2: [['vivi', '今天下午兩點、三點、四點各有一場會議喔～'], ['mi', '那我什麼時候上班？'], ['vivi', '開會就是上班呀！']],
+    tut_chest: [['kui', '咦？怪物掉了一個箱子！'], ['jie', '那是寶箱。公司倉庫的東西都被怪物吃掉了，打倒牠們就會吐出來。'], ['mi', '裡面可能有好東西，也可能只是釘書機。'], ['sys', '寶物是永久加成！點畫面下方的「🎁 寶箱」打開，重複拿到會升星，三件湊成一套還有套裝效果。']],
+    mid0: [['vivi', '（從辦公室玻璃後面揮手）'], ['kui', '那是誰？一直在看我們……'], ['jie', '老闆。她每週一都會「剛好路過」。'], ['mi', '午餐前通常會進來一次。大家螢幕記得切好。']],
+    boss_b_vivi: [['vivi', '大家都在認真上班嗎～？我來突擊檢查囉！'], ['jie', '……又來了。'], ['vivi', '打贏我的話，我就下來跟大家一起做！'], ['sys', '頭目戰限時 40 秒。頭目血量剩一半會「變身」換招！放招前會先預警，趁機放大招或狂點。']],
+    win_b_vivi: [['vivi', '不錯嘛！看來公司有你們很安心～'], ['vivi', '好，我也下去一起做！順便把我的扇子送你們。'], ['sys', 'Vivi 老闆加入了！大招「畫大餅」讓全隊攻擊暴增。'], ['sys', '取得神器「Vivi 的黃金扇」！每個頭目都有一件專屬神器。'], ['sys', '解鎖：自動大招（已經幫你打開）、辦公室「人體工學椅」「年終獎金池」']],
+    intro1: [['mi', '週二。客戶說 Logo 要再大一點。'], ['kui', '已經佔滿整張海報了啊……'], ['jie', '那就改回第一版，他們會說很好。'], ['vivi', '這個客戶很重要喔～他付的錢可以讓我們撐到年底！']],
+    mid1: [['kui', '前輩，客戶說「要有質感，但不要太有質感」……'], ['jie', '意思是「我也不知道我要什麼」。'], ['mi', '客戶剛剛來電，說他們老闆下午要親自來。'], ['jie', '……完了。甲方大魔王要出現了。']],
+    boss_b_client: [['sys', '甲方大魔王：「我要五彩斑斕的黑，而且要有呼吸感。」'], ['kui', '呼、呼吸感？'], ['vivi', '照他說的做！他付錢的！'], ['sys', '甲方會「再改一版」張開護盾：狂點或放大招可以打破！變身後還會叫主管來助陣。']],
+    win_b_client: [['jie', '最後他選了第一版。'], ['kui', '每次都這樣嗎？'], ['jie', '每次都這樣。'], ['sys', '取得神器「五彩斑斕的黑」！全隊攻擊大幅提升。']],
+    intro2: [['vivi', '今天下午兩點、三點、四點各有一場會議喔～'], ['mi', '那我什麼時候上班？'], ['vivi', '開會就是上班呀！'], ['jie', '我建議開一個會，討論要不要少開點會。']],
+    mid2: [['kui', '剛剛的會議結論是什麼？'], ['mi', '結論是：下次開會再決定。'], ['jie', '會議室的時鐘好像壞了，從早上十點一直停在「再五分鐘」。'], ['kui', '所以……我們被困在會議裡了？']],
     boss_b_meeting: [['sys', '無限會議：「我們先來對齊一下，再開一個會討論要不要開會。」'], ['jie', '這場會議沒有結束時間。'], ['kui', '那我們把它打到結束！'], ['sys', '它會「再開一個會」叫小怪擋在前面，小葵的大招最好清。']],
-    win_b_meeting: [['mi', '會議記錄我寫好了：「下週再議」。'], ['vivi', '很好，很有效率！']],
-    intro3: [['kui', '週報明天要交，我還沒開始……'], ['jie', '我也還沒。'], ['mi', '我寫好了，但系統當掉了。']],
+    win_b_meeting: [['mi', '會議記錄我寫好了：「下週再議」。'], ['vivi', '很好，很有效率！'], ['kui', '時鐘終於動了！'], ['sys', '取得神器「會議室的永恆時鐘」！頭目戰時間變長了。']],
+    intro3: [['kui', '週報明天要交，我還沒開始……'], ['jie', '我也還沒。'], ['mi', '我寫好了，但系統當掉了。'], ['vivi', '週報很重要喔！那是你們成長的證明～']],
+    mid3: [['kui', '週報要寫「本週成長」……我這週成長了什麼？'], ['jie', '你學會了「已讀不回」。'], ['mi', '我學會了把電話音量調到最小。'], ['vivi', '寫得好看一點！董事會要看的！']],
     boss_b_report: [['sys', '週報魔像：「本週工作內容……請填寫至少五百字。」'], ['vivi', '數字要好看喔～'], ['sys', '「格式不對」會打全隊，看到預警就放小米的大招擋下來！']],
-    win_b_report: [['vivi', '這份週報寫得真好，我會拿去給董事會看！'], ['jie', '……那是去年的週報改日期。']],
-    intro4: [['kui', '週五了！今天一定要準時下班！'], ['mi', '別說出來，會被聽到。'], ['jie', '噓——']],
-    boss_b_final: [['sys', '17:59，一封新信件：「這個很簡單，下班前可以給我嗎？」'], ['kui', '它、它來了……'], ['vivi', '大家！打倒它就放假！'], ['mi', '這是最後一通電話了。']],
-    win_b_final: [['kui', '我們……準時下班了！！'], ['jie', '十年來第一次。'], ['mi', '電話我拔掉了。'], ['vivi', '好啦好啦，下週一見～'], ['sys', '恭喜通關！解鎖「加班模式」：無限關卡，想玩多久就多久。']]
+    win_b_report: [['vivi', '這份週報寫得真好，我會拿去給董事會看！'], ['jie', '……那是去年的週報改日期。'], ['kui', '前輩！'], ['sys', '取得神器「完美週報」！']],
+    intro4: [['kui', '週五了！今天一定要準時下班！'], ['mi', '別說出來，會被聽到。'], ['jie', '噓——'], ['vivi', '大家今天也要加油喔～（其實我也想早點走）']],
+    mid4: [['kui', '五點半了……大家都在偷偷收包包。'], ['mi', '我已經把電話設成轉語音信箱了。'], ['jie', '小心，每週五 17:59 都會有一封信。'], ['kui', '什麼信？'], ['jie', '……傳說中的「下班前的新需求」。']],
+    boss_b_final: [['sys', '17:59，一封新信件：「這個很簡單，下班前可以給我嗎？」'], ['kui', '它、它來了……'], ['vivi', '大家！打倒它就放假！'], ['mi', '這是最後一通電話了。'], ['jie', '這次，我們準時下班。']],
+    win_b_final: [['kui', '我們……準時下班了！！'], ['jie', '十年來第一次。'], ['mi', '電話我拔掉了。'], ['vivi', '好啦好啦，下週一見～'], ['sys', '取得神器「準時下班徽章」！'], ['sys', '恭喜通關！解鎖「加班模式」：無限關卡，怪物越來越強，寶箱照樣掉，想玩多久就多久。']]
   };
 
-  G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, LOOT, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK };
+  G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, RARITY, TREASURES, SETS, FX_TEXT, CHEST, ELITE, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -60,7 +60,7 @@ function run(m, minutes, verbose) {
     if (g.s.maxStage >= (DATA.AUTOBUY_AT || 5) && m.autoBuy && !g.s.autoBuy) { g.s.autoBuy = true; mark('autoBuy'); }
     // 購買
     buyT += dt;
-    if (buyT >= m.buyEvery) { buyT = 0; for (let k = 0; k < 300; k++) if (!buyOnce(g, m)) break; }
+    if (buyT >= m.buyEvery) { buyT = 0; if (!m.autoBuy || !g.s.autoBuy) while (g.chestCount && g.chestCount()) g.openChest(); for (let k = 0; k < 300; k++) if (!buyOnce(g, m)) break; }
     // 任務
     questT += dt;
     if (questT >= m.quest) {
