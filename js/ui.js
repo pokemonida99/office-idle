@@ -4,6 +4,7 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
+  G.VERSION = 'v1.1.1';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
   const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
 
@@ -517,7 +518,7 @@
   }
   function settings() {
     const A = G.Audio;
-    modal(`<h2>設定</h2><p>進度會自動存在這台裝置的瀏覽器裡。</p>`, [
+    modal(`<h2>設定</h2><p>進度會自動存在這台裝置的瀏覽器裡。</p><p>目前版本：<b>${G.VERSION}</b></p>`, [
       [A.muted ? '🔊 開啟聲音' : '🔇 關閉聲音', false, () => A.setMute(!A.muted)],
       [A.music ? '🎵 關閉音樂' : '🎵 開啟音樂', false, () => A.setMusic(!A.music)],
       ['重新開始', false, () => modal('<h2>確定要重新開始？</h2><p>所有進度都會清除，無法復原。</p>', [['取消', true], ['清除進度', false, () => { resetting = true; localStorage.removeItem(KEY); location.reload(); }]])],
@@ -537,10 +538,15 @@
     }
   }
   G.__step = sec => { for (let i = 0; i < sec / 0.5; i++) step(0.5); };
+  let errN = 0;
   function frame(ts) {
+    requestAnimationFrame(frame);           // 先排下一幀：這一幀就算出錯，遊戲也不會整個停住
+    try { tick(ts); } catch (err) { if (errN++ < 5) console.error('frame error', err); }
+  }
+  function tick(ts) {
     const dt = Math.min(0.5, (ts - last) / 1000 || 0.016); last = ts;
-    step(dt);
-    rnd.draw(paused ? 0 : Math.min(dt, 0.1));
+    try { step(dt); } catch (err) { game.events.length = 0; if (errN++ < 5) console.error('step error', err); }
+    try { rnd.draw(paused ? 0 : Math.min(dt, 0.1)); } catch (err) { if (errN++ < 5) console.error('draw error', err); try { rnd.ctx.setTransform(1, 0, 0, 1, 0, 0); rnd.ctx.globalAlpha = 1; } catch (e) {} }
     updateGold(dt);
     topT -= dt; if (topT <= 0) { topT = 0.1; updateTop(); updateTeam(); }
     panelT -= dt; if (panelT <= 0) { panelT = 0.25; updatePanel(); }
@@ -548,7 +554,6 @@
     else if (cbQ.length && !paused) showCelebrate();      // 劇情、對話框期間先排隊
     if (rebuildT > 0) { rebuildT -= dt; if (rebuildT <= 0) buildPanel(); }
     saveT -= dt; if (saveT <= 0) { saveT = 3; save(); }
-    requestAnimationFrame(frame);
   }
 
   async function boot() {

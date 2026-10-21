@@ -168,6 +168,8 @@ button { font-family: inherit; cursor: pointer; border: 0; touch-action: manipul
 #title h1 small { display: block; font-size: 13px; font-weight: 700; letter-spacing: 3px; color: #ffd9a8; text-shadow: none; margin-bottom: 6px; }
 #title p { color: #f1e6ff; font-size: 14px; line-height: 1.6; }
 #title .note { font-size: 12px; color: #b9acd9; margin-top: 10px; }
+#title .ver { font-size: 12px; color: #8f84b3; margin: 4px 0 0; }
+#title .ver b { color: #ffd86b; }
 .load { width: 220px; height: 8px; margin: 4px auto 14px; border-radius: 99px; background: rgba(255,255,255,.18); overflow: hidden; transition: opacity .4s; box-shadow: inset 0 1px 2px rgba(0,0,0,.3); }
 .load i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ffd23f, #ff8a3d); transform-origin: left; transform: scaleX(0); transition: transform .2s; }
 .load.ok { opacity: 0; }

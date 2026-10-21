@@ -2,6 +2,13 @@
 // 效能：所有圖片依 dpr 預先縮好放進 offscreen canvas（含白色剪影、灰階版），背景連同壓暗漸層一起快取；
 // 每幀不建立漸層、不用 filter / shadowBlur；粒子、數字、特效都有上限。
 (function (G) {
+  // 半徑算出負數時 canvas 會丟錯（v1.0 小米大招就是這樣讓整個畫面卡死），一律夾到 0
+  const CP = CanvasRenderingContext2D.prototype;
+  if (!CP.__safeArc) {
+    const arc = CP.arc, ell = CP.ellipse; CP.__safeArc = true;
+    CP.arc = function (x, y, r, a0, a1, ccw) { return arc.call(this, x, y, r > 0 ? r : 0, a0, a1, ccw); };
+    CP.ellipse = function (x, y, rx, ry, rot, a0, a1, ccw) { return ell.call(this, x, y, rx > 0 ? rx : 0, ry > 0 ? ry : 0, rot, a0, a1, ccw); };
+  }
   const W = 480, H = 300, GROUND = G.Engine.GROUND;
   const D = G.DATA;
   const IMG = {};
