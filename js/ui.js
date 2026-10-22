@@ -4,7 +4,7 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
-  G.VERSION = 'v1.3.1';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
+  G.VERSION = 'v1.3.2';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
   const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });   // 原本四人（劇情、升職造型用）
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
 
@@ -1092,11 +1092,62 @@
     m.hidden = false;
     box.querySelectorAll('.btns button').forEach(b => b.onclick = () => { G.Audio.play('tap'); m.hidden = true; paused = storyQ.length > 0; const f = btns[+b.dataset.i][2]; f && f(); });
   }
+  // ---------- 主畫面圖示（四款可挑；iPhone 讀 apple-touch-icon、Android 讀 manifest）----------
+  const ICONS = [['kui', '小葵'], ['mi', '小米'], ['jie', '阿傑'], ['vivi', 'Vivi']];
+  function iconChoice() { try { const v = localStorage.getItem('oi-icon'); return ICONS.some(i => i[0] === v) ? v : 'kui'; } catch (e) { return 'kui'; } }
+  function applyIcon(id) {
+    const abs = p => new URL(p, location.href).href;
+    $('#appleIcon').setAttribute('href', `art/icon/${id}-180.png`);
+    $('#favicon').setAttribute('href', `art/icon/${id}-64.png`);
+    const man = {
+      name: '不想上班！放置辦公室', short_name: '不想上班', start_url: abs('./'), scope: abs('./'), display: 'standalone', orientation: 'portrait',
+      background_color: '#1d1730', theme_color: '#1d1730',
+      icons: [{ src: abs(`art/icon/${id}-192.png`), sizes: '192x192', type: 'image/png' }, { src: abs(`art/icon/${id}-512.png`), sizes: '512x512', type: 'image/png', purpose: 'any' }, { src: abs(`art/icon/${id}-512.png`), sizes: '512x512', type: 'image/png', purpose: 'maskable' }]
+    };
+    try { $('#manifest').setAttribute('href', URL.createObjectURL(new Blob([JSON.stringify(man)], { type: 'application/manifest+json' }))); } catch (e) {}
+  }
+  function iconPicker() {
+    const cur = iconChoice(), ios = /iPhone|iPad|iPod/.test(navigator.userAgent), standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+    const onTitle = !$('#title').hidden;
+    modal(`<h2>📲 主畫面圖示</h2><p>挑一個喜歡的，再把遊戲加到手機主畫面，就能像 App 一樣全螢幕玩。</p>
+      <div class="iconPick">${ICONS.map(([id, n]) => `<button type="button" data-icon="${id}" class="${id === cur ? 'on' : ''}"><img src="art/icon/${id}-180.png" alt="${n}">${n}</button>`).join('')}</div>
+      <div class="a2hs">${standalone ? '你已經是從主畫面打開的了。想換圖示：先把主畫面上的舊圖示刪掉，挑好新的再加一次。'
+        : ios ? 'iPhone：用 <b>Safari</b> 打開這一頁，按下方的 <b>分享</b> 按鈕 → <b>加入主畫面</b>。'
+        : 'Android：Chrome 右上角 <b>⋮</b> → <b>加到主畫面</b>（或「安裝應用程式」）。<br>iPhone：Safari 的 <b>分享</b> → <b>加入主畫面</b>。'}</div>`,
+      [['好', true, () => { if (onTitle) paused = true; }]]);
+    $('#modal').querySelectorAll('.iconPick button').forEach(b => b.onclick = () => {
+      try { localStorage.setItem('oi-icon', b.dataset.icon); } catch (e) {}
+      applyIcon(b.dataset.icon); G.Audio.play('tab');
+      $('#modal').querySelectorAll('.iconPick button').forEach(x => x.classList.toggle('on', x === b));
+    });
+  }
+  // ---------- 桌面版鍵盤：空白鍵催稿、1～5 放大招、Enter 繼續、Esc 關閉 ----------
+  function onKey(e) {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key, vis = s => { const el = $(s); return el && !el.hidden; };
+    if (vis('#title') && !vis('#modal')) { if (k === 'Enter' || k === ' ') { e.preventDefault(); $('#btnStart').click(); } return; }
+    if (vis('#story')) { if (k === ' ' || k === 'Enter') { e.preventDefault(); nextLine(); } else if (k === 'Escape') skipStory(); return; }
+    if (k === 'Escape') {
+      for (const sel of ['#rcSkip', '#rcOk', '#cClose']) { const b = $(sel); if (b && b.offsetParent) { b.click(); return; } }
+      if (vis('#modal')) { const b = $('#modal').querySelector('.btns button.pri') || $('#modal').querySelector('.btns button'); if (b) b.click(); }
+      return;
+    }
+    if (paused) return;
+    if (k === ' ') {
+      e.preventDefault(); G.Audio.unlock();
+      const t = game.target && game.target(); if (!t) return;
+      const y = t.y - 40, r = game.tap(t.x, y); rnd.tapFx(t.x, y); if (r) G.Audio.play('tap', game.combo || 0);
+    } else if (/^[1-5]$/.test(k)) {
+      const id = (game.s.team || [])[+k - 1]; if (id) game.ult(id);
+    }
+  }
+
   function settings() {
     const A = G.Audio;
     modal(`<h2>設定</h2><p>進度會自動存在這台裝置的瀏覽器裡。</p><p>目前版本：<b>${G.VERSION}</b></p>`, [
       [A.muted ? '🔊 開啟聲音' : '🔇 關閉聲音', false, () => A.setMute(!A.muted)],
       [A.music ? '🎵 關閉音樂' : '🎵 開啟音樂', false, () => A.setMusic(!A.music)],
+      ['📲 主畫面圖示', false, iconPicker],
       ['重新開始', false, () => modal('<h2>確定要重新開始？</h2><p>所有進度都會清除，無法復原。</p>', [['取消', true], ['清除進度', false, () => { resetting = true; localStorage.removeItem(KEY); location.reload(); }]])],
       ['關閉', true]
     ]);
@@ -1182,6 +1233,9 @@
     $('#autoBuy').onchange = e => { game.s.autoBuy = e.target.checked; G.Audio.play('tab'); if (e.target.checked) toast('🤖 自動升級開啟：薪水會自動花在最划算的地方'); updatePanel(); };
     $('#btnSet').onclick = settings;
     $('#cheer').onclick = () => toast(`📣 同事打氣中：攻擊、血量 ×${(+game.cheerMul().toFixed(1))}，順利過幾關後會慢慢退掉`);
+    applyIcon(iconChoice());
+    $('#btnA2hs').onclick = e => { e.stopPropagation(); G.Audio.unlock(); iconPicker(); };
+    addEventListener('keydown', onKey);
     G.__reset = () => { resetting = true; localStorage.removeItem(KEY); location.reload(); };
     document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
     addEventListener('pagehide', save);

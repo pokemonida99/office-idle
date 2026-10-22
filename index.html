@@ -8,9 +8,16 @@
 <meta name="description" content="小葵、小米、阿傑和 Vivi 老闆一起打倒工作怪的放置小遊戲。免費、不用登入、打開就能玩。">
 <meta property="og:title" content="不想上班！放置辦公室">
 <meta property="og:description" content="打倒改稿單、奧客電話和無限會議，準時下班！">
-<meta property="og:image" content="art/ui/title.webp">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
-<link rel="stylesheet" href="style.css?v=9">
+<meta property="og:image" content="https://pokemonida99.github.io/office-idle/art/ui/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" sizes="64x64" href="art/icon/kui-64.png" id="favicon">
+<link rel="apple-touch-icon" sizes="180x180" href="art/icon/kui-180.png" id="appleIcon">
+<link rel="manifest" href="manifest.webmanifest" id="manifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="不想上班">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <div id="app">
@@ -55,7 +62,9 @@
     <div class="load" id="load"><i id="loadBar"></i></div>
     <button id="btnStart" class="big">開始上班</button>
     <p class="note">免費・不用登入・進度存在這台裝置</p>
-    <p class="ver">版本 <b id="verTxt">v1.3.1</b></p>
+    <button id="btnA2hs" type="button">📲 加到手機主畫面</button>
+    <p class="kbdHint">鍵盤：<kbd>空白鍵</kbd> 催稿　<kbd>1</kbd>～<kbd>5</kbd> 放大招　<kbd>Esc</kbd> 關閉視窗</p>
+    <p class="ver">版本 <b id="verTxt">v1.3.2</b></p>
   </div>
 </div>
 
@@ -87,11 +96,11 @@
     <div class="btns"><button id="cOpen" class="pri">打開</button><button id="cAll">全部打開</button><button id="cClose">關閉</button></div>
   </div>
 </div>
-<script src="js/roster.js?v=9"></script>
-<script src="js/data.js?v=9"></script>
-<script src="js/engine.js?v=9"></script>
-<script src="js/audio.js?v=9"></script>
-<script src="js/render.js?v=9"></script>
-<script src="js/ui.js?v=9"></script>
+<script src="js/roster.js?v=10"></script>
+<script src="js/data.js?v=10"></script>
+<script src="js/engine.js?v=10"></script>
+<script src="js/audio.js?v=10"></script>
+<script src="js/render.js?v=10"></script>
+<script src="js/ui.js?v=10"></script>
 </body>
 </html>

@@ -528,3 +528,45 @@ img.bd.tiny, img.cutImg.tiny { height: auto !important; width: 150px; max-width:
 .rcCut .cutThm { display: inline-block; margin-left: 6px; font-size: 12px; font-weight: 900; padding: 3px 9px; border-radius: 8px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.5); }
 .hcell .th { position: absolute; right: 0; top: 0; font-style: normal; font-size: 9px; font-weight: 900; color: #fff; background: linear-gradient(#ff8a3d, #ec5f9e); padding: 0 3px; border-radius: 0 0 0 6px; }
 .pk u.alt { background: var(--purple); }
+
+/* ---------- v1.3.2 桌面版：寬螢幕左邊戰場、右邊面板 ---------- */
+@media (min-aspect-ratio: 1/1) {
+  #title .titleArt { background: url(art/ui/title_wide.webp) center 40% / cover no-repeat, linear-gradient(#ffd9a8, #ff9ec4); }
+  #title .titleArt::after { background: linear-gradient(rgba(29,23,48,0) 50%, rgba(29,23,48,.88) 86%); }
+}
+@media (min-width: 900px) and (min-aspect-ratio: 5/4) {
+  body { background: #120d22 url(art/ui/title_wide.webp) center / cover no-repeat fixed; }
+  body::before { content: ""; position: fixed; inset: 0; background: rgba(18, 12, 34, .72); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+  #app { max-width: 1240px; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) 420px;
+    grid-template-rows: auto auto auto auto auto 1fr auto;
+    grid-template-areas: "top top" "goal panel" "stage panel" "team panel" "ult panel" "fill panel" "fill tabs";
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 60px rgba(0,0,0,.6); }
+  #top { grid-area: top; padding: 8px 14px; }
+  #goal { grid-area: goal; }
+  #stageWrap { grid-area: stage; width: min(100%, calc((100dvh - 250px) * 1.6)); justify-self: center; border-radius: 0 0 14px 14px; }
+  #team { grid-area: team; width: min(100%, 760px); justify-self: center; padding-top: 12px; }
+  #ultRow { grid-area: ult; width: min(100%, 760px); justify-self: center; }
+  #panel { grid-area: panel; border-radius: 0; box-shadow: inset 1px 0 0 rgba(0,0,0,.08); }
+  #tabs { grid-area: tabs; }
+  #team .ring { width: 64px; height: 64px; }
+  #team .lv { top: 52px; }
+  #team .nm { font-size: 12px; }
+  #title .titleBox { max-width: 540px; margin-bottom: 28px; padding: 18px 26px 20px; border-radius: 26px; background: rgba(24, 16, 46, .68); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.12); }
+  #title .titleArt { background-position: center 22%; }
+  #title .titleArt::after { background: linear-gradient(rgba(29,23,48,0) 65%, rgba(29,23,48,.6) 100%); }
+  #title h1 { font-size: 48px; }
+  #title p { font-size: 15px; }
+  .dlg { max-width: 640px; }
+  #modal .box { max-width: 440px; }
+  .kbdHint { display: block; }
+}
+.kbdHint { display: none; font-size: 11px; color: #b9acd9; margin-top: 6px; }
+.kbdHint kbd { display: inline-block; min-width: 16px; padding: 0 5px; border-radius: 4px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); font: 700 11px/16px var(--font); color: #fff; }
+
+/* 主畫面圖示挑選 */
+.iconPick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0 6px; }
+.iconPick button { background: none; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font: 700 12px var(--font); color: var(--ink); }
+.iconPick img { width: 100%; aspect-ratio: 1; border-radius: 22%; box-shadow: 0 3px 8px rgba(0,0,0,.25); outline: 3px solid transparent; outline-offset: 2px; transition: transform .15s; }
+.iconPick button.on img { outline-color: var(--accent); transform: scale(1.06); }
+.a2hs { font-size: 12px; color: var(--sub); text-align: left; background: #fff; border-radius: 12px; padding: 8px 10px; line-height: 1.6; }
+#btnA2hs { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 99px; padding: 6px 14px; font: 800 13px var(--font); margin-top: 10px; }

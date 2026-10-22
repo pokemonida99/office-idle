@@ -1,0 +1,16 @@
+{
+  "name": "不想上班！放置辦公室",
+  "short_name": "不想上班",
+  "description": "小葵、小米、阿傑和 Vivi 老闆一起打倒工作怪的放置小遊戲。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1d1730",
+  "theme_color": "#1d1730",
+  "icons": [
+    { "src": "art/icon/kui-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "art/icon/kui-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "art/icon/kui-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
