@@ -90,7 +90,36 @@
     fail() { [392, 330, 262].forEach((f, i) => tone(f, 0.28, 'triangle', 0.09, i * 0.18)); },
     hurt() { if (gate('hurt', 80)) tone(160, 0.08, 'square', 0.04, 0, -60, null, { lp: 1500 }); },
     down() { tone(330, 0.35, 'triangle', 0.08, 0, -220); },
-    join() { [392, 523, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'triangle', 0.09, i * 0.09)); }
+    join() { [392, 523, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, 'triangle', 0.09, i * 0.09)); },
+    // ---------- v1.3 招募、弱點、治療、解鎖 ----------
+    weak() { if (!gate('weak', 220)) return; tone(520, 0.07, 'square', 0.03, 0, 300, null, { lp: 3200 }); noise(0.06, 0.045, 2600, 'bandpass'); },
+    heal() { if (!gate('heal', 260)) return; tone(880, 0.2, 'sine', 0.05, 0, 260); tone(1320, 0.22, 'sine', 0.035, 0.07, 260); },
+    paper() { if (!gate('paper', 300)) return; noise(0.09, 0.05, 3200, 'bandpass', 0, 1500); tone(1760, 0.06, 'triangle', 0.03, 0.04); },
+    unlock() { [784, 1047, 1568].forEach((f, i) => tone(f, 0.3, 'triangle', 0.07, i * 0.1)); noise(0.35, 0.03, 6000, 'highpass', 0.22); },
+    // 信封飛出：紙張颼一聲＋拍動
+    envelope() { noise(0.4, 0.06, 700, 'bandpass', 0, 2600); [0.12, 0.22, 0.32].forEach(w => noise(0.05, 0.04, 2400, 'bandpass', w)); tone(500, 0.12, 'triangle', 0.04, 0.42, 380); },
+    // 蓄光（高稀有度才有）：小鼓滾奏＋上升音
+    roll() { for (let i = 0; i < 18; i++) noise(0.05, 0.025 + i * 0.003, 1900, 'bandpass', i * 0.07); tone(220, 1.25, 'sawtooth', 0.035, 0, 660, null, { lp: 1800 }); },
+    // 爆開的光：稀有度越高音越多越亮
+    rcGlow(r = 0) {
+      const N = [[784, 988], [784, 988, 1175], [659, 784, 988, 1319], [523, 659, 784, 1047, 1319, 1568], [523, 659, 784, 1047, 1319, 1568, 2093]][Math.max(0, Math.min(4, r))];
+      N.forEach((f, i) => tone(f, 0.22, 'triangle', 0.06, i * 0.05));
+      noise(0.35, 0.03 + r * 0.01, 5000, 'highpass', 0.05);
+      if (r >= 3) { tone(80, 0.6, 'sine', 0.3, 0, -30); noise(0.5, 0.08, 400, 'lowpass'); }
+    },
+    flip(r = 0) { if (!gate('flip', 60)) return; tone(1100 + r * 220, 0.06, 'triangle', 0.05); if (r >= 2) tone(1650 + r * 220, 0.12, 'sine', 0.04, 0.05); },
+    // SSR 登場：和弦漸強＋閃光
+    ssrIn() {
+      tone(90, 0.7, 'sine', 0.3, 0, -40); noise(0.5, 0.1, 500, 'lowpass');
+      [523, 659, 784, 1047].forEach(f => tone(f, 1.0, 'sawtooth', 0.022, 0.08, 0, null, { lp: 2600, atk: 0.12 }));
+      [1568, 2093, 2637, 3136].forEach((f, i) => tone(f, 0.2, 'triangle', 0.035, 0.35 + i * 0.07));
+    },
+    // UR 登場：雷聲＋大和弦＋閃爍上行
+    urIn() {
+      tone(55, 1.2, 'sine', 0.38, 0, -20); noise(1.0, 0.14, 260, 'lowpass', 0, -150); noise(0.4, 0.06, 3000, 'bandpass', 0.05, 3000);
+      [[523, 659, 784, 1047], [587, 740, 880, 1175], [659, 831, 988, 1319]].forEach((c, k) => c.forEach(f => tone(f, k === 2 ? 1.4 : 0.32, 'sawtooth', 0.02, 0.15 + k * 0.3, 0, null, { lp: 3000, atk: 0.05 })));
+      [1319, 1568, 2093, 2637, 3136, 4186].forEach((f, i) => tone(f, 0.25, 'triangle', 0.035, 0.75 + i * 0.06));
+    }
   };
 
   // ---------- 背景音樂：輕快辦公室小調（8 小節循環，鼓＋貝斯＋和弦＋旋律）----------

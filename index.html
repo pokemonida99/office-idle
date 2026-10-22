@@ -10,7 +10,7 @@
 <meta property="og:description" content="打倒改稿單、奧客電話和無限會議，準時下班！">
 <meta property="og:image" content="art/ui/title.webp">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💼</text></svg>">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <div id="app">
@@ -18,8 +18,10 @@
     <div class="stage"><b id="stDay">週一</b><div class="stInfo"><span id="stCode">1-1</span><span id="stName">打卡</span></div></div>
     <div id="waves"></div>
     <div class="gold" id="goldBox"><i class="coin"></i><b id="gold">0</b></div>
+    <button class="resBox" id="resBox" hidden><img class="resIc" src="art/ui/resume.webp" data-fb="res" alt=""><b id="resume">0</b><span id="resPlus"></span></button>
     <button id="btnSet" class="icon" aria-label="設定">⚙️</button>
   </header>
+  <div id="goal" hidden><em>🎯</em><span id="goalTx"></span><i class="gb"><i id="goalBar"></i></i></div>
   <div id="stageWrap">
     <canvas id="cv"></canvas>
     <div id="celebrate" hidden><div class="cb"><div class="ic"></div><div class="tx"><b></b><small></small></div></div></div>
@@ -37,7 +39,8 @@
   </div>
   <main id="panel"></main>
   <nav id="tabs">
-    <button data-tab="staff" class="on"><em>👥</em><span>員工</span><i class="dot" id="staffDot" hidden></i></button>
+    <button data-tab="staff" class="on"><em>💪</em><span>升級</span><i class="dot" id="staffDot" hidden></i></button>
+    <button data-tab="hero"><em>👥</em><span>同事</span><i class="dot" id="heroDot" hidden></i></button>
     <button data-tab="office"><em>🏢</em><span>辦公室</span><i class="dot" id="officeDot" hidden></i></button>
     <button data-tab="quest"><em>📋</em><span>任務</span><i class="dot" id="questDot" hidden></i></button>
     <button data-tab="loot"><em>💎</em><span>寶物</span><i class="dot" id="lootDot" hidden></i></button>
@@ -52,7 +55,7 @@
     <div class="load" id="load"><i id="loadBar"></i></div>
     <button id="btnStart" class="big">開始上班</button>
     <p class="note">免費・不用登入・進度存在這台裝置</p>
-    <p class="ver">版本 <b id="verTxt">v1.2.0</b></p>
+    <p class="ver">版本 <b id="verTxt">v1.3.0</b></p>
   </div>
 </div>
 
@@ -67,6 +70,15 @@
 
 <div id="modal" class="overlay" hidden><div class="box"></div></div>
 
+<div id="rcUI" class="overlay" hidden>
+  <div class="rcFlash"></div>
+  <button id="rcSkip" class="skip">跳過 ⏭</button>
+  <div class="rcStage"><div class="rays"></div><div class="rcEnv"><i class="flap"></i><i class="seal"></i><b>履歷</b></div><div class="rcOne" hidden></div><div class="rcGrid" hidden></div></div>
+  <div class="rcCut" hidden></div>
+  <p class="rcInfo"></p>
+  <div class="btns" hidden><button id="rcAgain" class="pri"></button><button id="rcOk">收下</button></div>
+</div>
+
 <div id="chestUI" class="overlay" hidden>
   <div class="cbox">
     <div class="cstage"><div class="rays"></div><div class="chestImg"></div><div class="reveal" hidden><div class="rimg"></div><div class="rtag"></div><b class="rname"></b><div class="rstar"></div><p class="rfx"></p><p class="rlore"></p></div></div>
@@ -75,10 +87,11 @@
     <div class="btns"><button id="cOpen" class="pri">打開</button><button id="cAll">全部打開</button><button id="cClose">關閉</button></div>
   </div>
 </div>
-<script src="js/data.js?v=7"></script>
-<script src="js/engine.js?v=7"></script>
-<script src="js/audio.js?v=7"></script>
-<script src="js/render.js?v=7"></script>
-<script src="js/ui.js?v=7"></script>
+<script src="js/roster.js?v=8"></script>
+<script src="js/data.js?v=8"></script>
+<script src="js/engine.js?v=8"></script>
+<script src="js/audio.js?v=8"></script>
+<script src="js/render.js?v=8"></script>
+<script src="js/ui.js?v=8"></script>
 </body>
 </html>

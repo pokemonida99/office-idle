@@ -4,9 +4,95 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
-  G.VERSION = 'v1.2.0';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
-  const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });
+  G.VERSION = 'v1.3.0';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
+  const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });   // 原本四人（劇情、升職造型用）
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
+
+  // ---------- v1.3 同事（100 位）：名冊、稀有度、部門；B 的欄位還沒有時用預設值 ----------
+  const HRAR0 = [{ name: '普通', key: 'N', color: '#9aa4b2' }, { name: '稀有', key: 'R', color: '#3d9bff' }, { name: '史詩', key: 'SR', color: '#b26bff' }, { name: '傳說', key: 'SSR', color: '#ffb020' }, { name: '神話', key: 'UR', color: '#ff4fd8' }];
+  const HR = HRAR0.map((r, i) => Object.assign({}, r, D.HRAR && D.HRAR[i]));
+  const DEPT_KEYS = ['design', 'cs', 'eng', 'sales', 'admin'];
+  const DEPT0 = { design: { name: '設計部', color: '#e0954a' }, cs: { name: '客服部', color: '#6d8fd6' }, eng: { name: '工程部', color: '#3fae8f' }, sales: { name: '業務部', color: '#ec5f9e' }, admin: { name: '行政部', color: '#8d7a63' } };
+  const DEPT = {}; DEPT_KEYS.forEach(k => { DEPT[k] = Object.assign({}, DEPT0[k], D.DEPTS && D.DEPTS[k]); });
+  const LEGACY_DEPT = { mi: 'cs', jie: 'design', kui: 'design', vivi: 'admin' };
+  const ROLE0 = { tank: '坦克', dps: '單體輸出', aoe: '範圍輸出', crit: '爆擊', support: '輔助', healer: '治療' };
+  const ALL = (D.ALLHEROES || D.HEROES.concat(G.ROSTER || [])).slice();
+  const AH = {}; ALL.forEach(h => { AH[h.id] = h; });
+  const hdef = id => AH[id] || (game && game.heroDef && game.heroDef(id)) || HERO[id] || { id, name: id };
+  const rarOf = h => h.rar != null ? h.rar : HERO[h.id] ? 3 : 0;
+  const deptOf = h => DEPT[h.dept] ? h.dept : LEGACY_DEPT[h.id] || 'admin';
+  const roleName = h => (D.ROLES && D.ROLES[h.role] && D.ROLES[h.role].name) || ROLE0[h.role] || h.role || '';
+  const skillOf = h => typeof h.skill === 'string' ? { name: h.skill, desc: '' } : h.skill || { name: '', desc: '' };
+  const lineOf = h => h.line || (h.lines && h.lines[0]) || '';
+  const owned = id => (game.s.heroes[id] || 0) >= 1;
+  const starOf = id => (game.s.stars && game.s.stars[id]) || (owned(id) ? 1 : 0);
+  const teamIds = () => Array.isArray(game.s.team) ? game.s.team.filter(id => AH[id] || HERO[id]) : game.heroes.map(h => h.id).filter(owned);
+  const teamSize = () => game.teamSize ? game.teamSize() : 4;
+  const MAX_SLOTS = 5;
+  // 圖片：沒圖時換成部門色剪影（img 用 data-fb，背景圖墊部門色）
+  const svgURI = s => 'data:image/svg+xml,' + encodeURIComponent(s);
+  const silFace = c => svgURI(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="27" r="13" fill="${c}"/><path d="M8 64c0-15 10-24 24-24s24 9 24 24z" fill="${c}"/></svg>`);
+  const silBody = c => svgURI(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 150"><g fill="${c}" fill-opacity=".85" stroke="#fff" stroke-opacity=".7" stroke-width="2"><circle cx="40" cy="30" r="25"/><path d="M12 149V84c0-17 12-28 28-28s28 11 28 28v65z"/></g><text x="40" y="40" font-size="30" font-weight="900" text-anchor="middle" fill="#fff" fill-opacity=".9" font-family="sans-serif">?</text></svg>`);
+  const RES_SVG = svgURI('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 48"><rect x="3" y="2" width="34" height="44" rx="4" fill="#fff" stroke="#c9a77a" stroke-width="2"/><rect x="8" y="8" width="10" height="12" rx="2" fill="#ffb04d"/><path d="M22 10h10M22 16h8M8 27h24M8 33h24M8 39h16" stroke="#b39672" stroke-width="2.5" stroke-linecap="round"/></svg>');
+  const FB = { res: RES_SVG };
+  const faceURL = id => `art/hero/face/${id}.webp`;
+  function bodyURL(id) {
+    if (HERO[id]) return `art/char/${game.rank(game.s.heroes[id] || 0) >= 2 ? 'pro_' : ''}${id}.webp`;
+    return `art/hero/${id}.webp`;
+  }
+  // 頭像 HTML：原本四人從站姿圖裁頭（有升職造型），其他用頭像圖
+  function faceHTML(id, c = 'fc') {
+    if (HERO[id]) return `<i class="${c} crop" style="${faceStyle(id, 200)}"></i>`;
+    const col = DEPT[deptOf(hdef(id))].color;
+    return `<img class="${c}" src="${faceURL(id)}" data-fb="${silFace(col)}" loading="lazy" decoding="async" alt="" draggable="false">`;
+  }
+  function bodyHTML(id, c = 'bd') {
+    const col = DEPT[deptOf(hdef(id))].color;
+    return `<img class="${c}" src="${bodyURL(id)}" data-fb="${HERO[id] ? '' : faceURL(id) + '|'}${silBody(col)}" decoding="async" alt="" draggable="false">`;
+  }
+  function fixBroken(root) {
+    (root || document).querySelectorAll('img[data-fb]').forEach(im => { if (im.complete && !im.naturalWidth) nextFb(im); });
+  }
+  // data-fb 可以用 | 串好幾個備案，一個失敗換下一個
+  function nextFb(t) {
+    const L = t.dataset.fb.split('|'), i = t._fb || 0;
+    if (i >= L.length) return;
+    t._fb = i + 1; t.src = FB[L[i]] || L[i];
+  }
+  document.addEventListener('error', e => { const t = e.target; if (t && t.tagName === 'IMG' && t.dataset.fb) nextFb(t); }, true);
+  // 全身圖沒好、退到頭像時：縮成卡片，不要放大成一團糊
+  document.addEventListener('load', e => { const t = e.target; if (t && t.tagName === 'IMG' && t._fb && !t.src.startsWith('data:') && /\b(bd|cutImg)\b/.test(t.className) && t.naturalWidth && t.naturalWidth <= 200 && t.naturalHeight <= 200) t.classList.add('tiny'); }, true);
+  // 解鎖：engine 有 unlocked(key) 就用；沒有就看 D.UNLOCKS 的 at
+  const unlockOf = key => (D.UNLOCKS || []).find(u => u.key === key);
+  function isUnlocked(key) {
+    if (game.unlocked) return !!game.unlocked(key);
+    if (key === 'recruit' && game.recruitOpen) return game.recruitOpen();
+    if (game.s.unlocked && game.s.unlocked[key]) return true;
+    const u = unlockOf(key); return u ? game.s.maxStage >= u.at : key === 'recruit' ? typeof game.recruit === 'function' : true;
+  }
+  const unlockAtText = u => u ? `通過 ${E.stageName(Math.max(0, u.at - 1)).code} 解鎖` : '之後解鎖';
+  // 第 n 個隊伍格（n＝4、5）的解鎖條件
+  function slotUnlock(n) {
+    const L = (D.UNLOCKS || []).filter(u => /slot|team/i.test(u.key));
+    return L.find(u => String(u.key).includes(String(n))) || L.sort((a, b) => a.at - b.at)[n - 4] || null;
+  }
+  // 這一章的怪怕哪些部門
+  let weakNow = [], weakSet = new Set();
+  function calcWeak() {
+    let a = [];
+    if (game.weakDepts) a = game.weakDepts() || [];
+    else if (game.stageWeak) {
+      const sw = game.stageWeak() || {}, w = sw.w || {};
+      a = Object.keys(w).filter(k => w[k] > 0).sort((x, y) => w[y] - w[x]);
+      if (sw.boss) a = [sw.boss].concat(a.filter(k => k !== sw.boss));
+    } else {
+      const s = game.s, ch = Math.min(D.CHAPTERS.length - 1, E.chapterOf(s.stage)), C = D.CHAPTERS[ch];
+      const ks = E.isBoss(s.stage) ? [C.boss] : C.pool;
+      ks.forEach(k => { const w = D.ENEMIES[k] && D.ENEMIES[k].weak; if (w && !a.includes(w)) a.push(w); });
+    }
+    if (a.join() !== weakNow.join()) { weakNow = a.slice(); weakSet = new Set(a); }
+  }
+  const weakText = () => weakNow.map(k => `<b style="color:${DEPT[k] ? DEPT[k].color : ''}">${DEPT[k] ? DEPT[k].name : k}</b>`).join('、');
 
   // ---------- 數字格式 ----------
   const UNITS = ['', 'K', 'M', 'B', 'T'];
@@ -31,6 +117,7 @@
   // 頭像（從站姿圖裁頭）
   const FACE = { kui: [52, 17], mi: [56, 13], jie: [47, 12], vivi: [46, 8] };
   function faceStyle(id, size = 220) {
+    if (!FACE[id]) return `background-image:url(${faceURL(id)});background-size:cover;background-position:center;background-color:${DEPT[deptOf(hdef(id))].color}`;
     const g = game, pro = g && g.rank(g.s.heroes[id] || 0) >= 2;
     const [fx, fy] = FACE[id];
     return `background-image:url(art/char/${pro ? 'pro_' : ''}${id}.webp);background-size:${size}% auto;background-position:${fx}% ${fy}%`;
@@ -52,7 +139,8 @@
   function loadSave() {
     try {
       const raw = localStorage.getItem(KEY); if (!raw) return null;
-      return E.fixSave(JSON.parse(raw));
+      const sv = JSON.parse(raw);                 // 不先 fixSave：engine 要靠原始存檔判斷「v1.2 舊存檔」補發履歷
+      return sv && typeof sv === 'object' ? sv : null;
     } catch (e) { return null; }
   }
   let resetting = false;
@@ -173,11 +261,27 @@
     hide(top.btnChest, !chN); if (chN) { setText(top.chestN, String(chN)); cls(top.btnChest, 'gold', s.chests.gold > 0); }
     const cn = game.cheerN ? game.cheerN() : 0;
     hide(top.cheer, !cn); if (cn) setText(top.cheer, '📣×' + (+game.cheerMul().toFixed(1)));
-    // 解鎖自動升級
-    if (s.maxStage >= AUTOBUY_AT && !seen('tut_autobuy')) { mark('tut_autobuy'); celebrate('🤖', '解鎖「自動升級」', '打開後薪水會自動花在最划算的地方'); }
+    // 解鎖自動升級（D.UNLOCKS 有 autobuy 的話交給 unlock 事件）
+    if (s.maxStage >= AUTOBUY_AT && !seen('tut_autobuy') && !unlockOf('autobuy')) { mark('tut_autobuy'); celebrate('🤖', '解鎖「自動升級」', '打開後薪水會自動花在最划算的地方'); }
+    // 履歷與下一個目標
+    const rcOn = isUnlocked('recruit');
+    hide(top.resBox, !rcOn && !(s.resume > 0));
+    setText(top.resume, G.fmt(s.resume || 0));
+    calcWeak();
+    goalT -= 0.1;
+    if (goalT <= 0) {
+      goalT = 0.5;
+      const g = game.nextGoal ? game.nextGoal() : null;
+      hide(top.goal, !g);
+      if (g) {
+        setText(top.goalTx, g.text + (g.need > 1 ? `（${G.fmt(Math.min(g.cur, g.need))}/${G.fmt(g.need)}）` : ''));
+        bar(top.goalBar, g.need ? g.cur / g.need : 0);
+      }
+    }
     // 新手提示泡泡
     let ht = '';
     if (paused) ht = '';
+    else if (rcOn && !seen('tut_recruit') && tab !== 'hero' && canRc(1)) ht = '📄 可以招募新同事了！點下方「同事」';
     else if (game.bonuses && game.bonuses.length && !seen('tut_bonus')) ht = '🛵 外送來了！快點它拿獎勵';
     else if (chN && !seen('tut_open')) ht = '🎁 拿到寶箱了！點下方「寶箱」打開';
     else if (s.stats.taps < 8 && s.stats.play < 90 && game.phase === 'fight') ht = '👆 點怪物「催稿」一起打！';
@@ -190,44 +294,48 @@
     }
   }
   const BUFF_IC = { gold: '🍱', aspd: '☕', atk: '🧋' };
-  const team = {};
+  // 下方隊伍卡：只放上場的人（game.heroes），隊伍變了才重建
+  let team = [], teamKey = '';
   function buildTeam() {
-    $('#team').innerHTML = D.ORDER.map(id => {
-      const h = HERO[id];
-      return `<div class="hc" data-id="${id}" style="--c:${h.color}"><div class="ring"><div class="face"></div></div><span class="lv"></span><div class="nm">${h.name}</div><div class="hp"><i></i></div></div>`;
+    const box = $('#team'), hs = game.heroes;
+    teamKey = hs.map(h => h.id).join(',');
+    box.style.gridTemplateColumns = `repeat(${hs.length || 1}, minmax(0, ${hs.length >= 5 ? 1000 : 88}px))`;
+    box.classList.toggle('n5', hs.length >= 5);
+    box.innerHTML = hs.map(h => {
+      const d = hdef(h.id), col = d.color || DEPT[deptOf(d)].color;
+      return `<div class="hc" data-id="${h.id}" style="--c:${col};--rc:${HR[rarOf(d)].color}"><div class="ring"><div class="face"></div></div><span class="lv"></span><span class="wk">剋</span><div class="nm">${d.name}</div><div class="hp"><i></i></div></div>`;
     }).join('');
-    $('#team').querySelectorAll('.hc').forEach(el => {
-      const id = el.dataset.id;
-      team[id] = { el, ring: el.querySelector('.ring'), face: el.querySelector('.face'), hp: el.querySelector('.hp i'), lv: el.querySelector('.lv') };
-      el.addEventListener('pointerdown', () => {
-        G.Audio.unlock();
-        if (game.ult(id)) return;
-        if (game.s.heroes[id] === 0) toast(`${HERO[id].name}：通過 ${E.stageName(HERO[id].joinAt - 1).code} 後加入`);
-        else { const h = game.heroes.find(x => x.id === id); if (h && !h.dead && h.energy < 100) toast(`${HERO[id].name}的大招還在充能（${Math.floor(h.energy)}%）`); }
-      });
-    });
+    team = [...box.querySelectorAll('.hc')].map((el, i) => ({ el, h: hs[i], id: hs[i].id, dept: deptOf(hdef(hs[i].id)), ring: el.querySelector('.ring'), face: el.querySelector('.face'), hp: el.querySelector('.hp i'), lv: el.querySelector('.lv') }));
+  }
+  function tapTeam(id) {
+    G.Audio.unlock();
+    if (game.ult(id)) return;
+    const d = hdef(id);
+    if (!owned(id)) toast(`${d.name}：通過 ${E.stageName((d.joinAt || 1) - 1).code} 後加入`);
+    else { const h = game.heroes.find(x => x.id === id); if (h && !h.dead && h.energy < 100) toast(`${d.name}的大招還在充能（${Math.floor(h.energy)}%）`); }
   }
   function updateTeam() {
     const s = game.s;
-    const firstReady = s.stats.ults < 1 && !s.autoUlt && !paused ? D.ORDER.find(id => game.canUlt(game.heroes.find(x => x.id === id))) : null;
-    D.ORDER.forEach(id => {
-      const t = team[id], h = game.heroes.find(x => x.id === id), lv = s.heroes[id];
-      const ready = game.canUlt(h);
+    if (game.heroes.map(h => h.id).join(',') !== teamKey || (team[0] && team[0].h !== game.heroes[0])) buildTeam();
+    const firstReady = s.stats.ults < 1 && !s.autoUlt && !paused ? (game.heroes.find(h => game.canUlt(h)) || {}).id : null;
+    for (const t of team) {
+      const id = t.id, h = t.h, lv = s.heroes[id] || 0;
       cls(t.el, 'locked', lv === 0);
       cls(t.el, 'dead', h.on && h.dead);
-      cls(t.el, 'ready', ready);
+      cls(t.el, 'ready', game.canUlt(h));
       cls(t.el, 'point', id === firstReady);
+      cls(t.el, 'weak', weakSet.has(t.dept));
       css(t.ring, '--e', String(lv ? Math.floor(h.energy) : 0));
       bar(t.hp, lv ? h.hp / h.max : 0);
       setText(t.lv, lv ? 'Lv' + lv : '🔒');
       const st = faceStyle(id); if (t.face._st !== st) { t.face._st = st; t.face.setAttribute('style', st); }
-    });
+    }
   }
 
   // ---------- 最划算的升級（一鍵升級用；engine 有 buyBest 就用 engine 的）----------
   function power() {
     const g = game, s = g.s;
-    let hp = 0; D.ORDER.forEach(id => { if (s.heroes[id] > 0) hp += g.heroHp(id); });
+    let hp = 0; teamIds().forEach(id => { if (s.heroes[id] > 0) hp += g.heroHp(id); });
     return Math.log(g.teamDps() + g.tapDmg() * 0.5 + 1) + 0.45 * Math.log(hp + 1) + 0.35 * Math.log(g.goldMul());
   }
   function bestBuy() {
@@ -237,7 +345,7 @@
       apply(); const v = (power() - base) / cost; undo();
       if (!best || v > best.v) best = { kind, id, v, cost };
     };
-    D.ORDER.forEach(id => { if (s.heroes[id] > 0) consider('hero', id, g.heroCost(id), () => s.heroes[id]++, () => s.heroes[id]--); });
+    teamIds().forEach(id => { if (s.heroes[id] > 0) consider('hero', id, g.heroCost(id), () => s.heroes[id]++, () => s.heroes[id]--); });
     D.OFFICE.forEach(o => {
       if (g.office(o.id) >= o.max || E.chapterOf(s.maxStage) < o.unlock) return;
       const lv = g.office(o.id);
@@ -254,7 +362,7 @@
   }
   function anyAffordable() {
     const s = game.s;
-    return D.ORDER.some(id => s.heroes[id] > 0 && game.heroCost(id) <= s.gold) || officeAffordable() || D.CURVE.tapCost(s.tapLv) <= s.gold;
+    return teamIds().some(id => s.heroes[id] > 0 && game.heroCost(id) <= s.gold) || officeAffordable() || D.CURVE.tapCost(s.tapLv) <= s.gold;
   }
   function officeAffordable() {
     const s = game.s, ch = E.chapterOf(s.maxStage);
@@ -265,7 +373,7 @@
     const cnt = {}; let n = 0;
     for (; n < 600; n++) {
       const b = buyBestOnce(); if (!b) break;
-      const name = b.kind === 'hero' ? HERO[b.id].name : b.kind === 'office' ? D.OFFICE.find(o => o.id === b.id).name : '催稿力';
+      const name = b.kind === 'hero' ? hdef(b.id).name : b.kind === 'office' ? D.OFFICE.find(o => o.id === b.id).name : '催稿力';
       cnt[name] = (cnt[name] || 0) + 1;
     }
     if (!n) { toast('薪水不夠，先打幾隻怪賺錢吧！'); return 0; }
@@ -298,19 +406,26 @@
       p.insertAdjacentHTML('beforeend', `<div class="tip" id="staffTip"></div><div class="tools"><div class="seg">${[1, 10, 'max'].map(n => `<button data-n="${n}" class="${buyN == n ? 'on' : ''}">${n === 'max' ? '最多' : '×' + n}</button>`).join('')}</div><button class="oneclick" id="btnOne">⚡ 一鍵升級</button></div>`);
       p.querySelectorAll('.seg button').forEach(b => b.onclick = () => { buyN = b.dataset.n === 'max' ? 'max' : +b.dataset.n; p.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b)); updatePanel(); });
       $('#btnOne').onclick = oneClick;
-      D.ORDER.forEach(id => {
-        const h = HERO[id];
+      const ids = teamIds(); builtKey = ids.join(',');
+      ids.forEach(id => {
+        const h = hdef(id), sk = skillOf(h), R0 = HR[rarOf(h)];
         const el = document.createElement('div'); el.className = 'row'; el.dataset.id = id;
-        el.innerHTML = `<div class="pic"><span class="lv"></span></div><div class="info"><div class="t">${h.name}<small class="rk"></small></div><div class="d st"></div><div class="prog rank"><i></i></div><div class="skill">⚡ ${h.skill.name}：${h.skill.desc}<br>✦ ${h.passive}</div></div><button class="buy"></button>`;
+        el.innerHTML = `<div class="pic" style="--rc:${R0.color}"><span class="lv"></span></div><div class="info"><div class="t">${h.name}<small class="rk"></small></div><div class="d st"></div>${h.ranks ? '<div class="prog rank"><i></i></div>' : ''}<div class="skill">⚡ ${sk.name}${sk.desc ? '：' + sk.desc : ''}${h.passive ? '<br>✦ ' + h.passive : ''}</div></div><button class="buy"></button>`;
+        if (!HERO[id]) el.querySelector('.pic').innerHTML = faceHTML(id) + '<span class="lv"></span>';
         p.appendChild(el);
-        rows.push(Object.assign(rowRefs(el), { kind: 'hero', id }));
+        rows.push(Object.assign(rowRefs(el), { kind: 'hero', id, def: h }));
+        el.querySelector('.pic').onclick = () => heroInfo(id);
         holdButton(el.querySelector('.buy'), () => { const n = heroBuyCount(id); const ok = game.buyHero(id, n); if (ok) { G.Audio.play('buy'); mark('tut_buy'); } updatePanel(); return ok; });
       });
+      p.insertAdjacentHTML('beforeend', `<button class="toHero" id="toHero">👥 這裡只列上場的同事・到「同事」換人 ›</button>`);
+      $('#toHero').onclick = () => switchTab('hero');
       const el = document.createElement('div'); el.className = 'row'; el.dataset.id = 'tap';
       el.innerHTML = `<div class="emoji">👆</div><div class="info"><div class="t">催稿力<small>就是你</small></div><div class="d st"></div></div><button class="buy"></button>`;
       p.appendChild(el);
       rows.push(Object.assign(rowRefs(el), { kind: 'tap', id: 'tap' }));
       holdButton(el.querySelector('.buy'), () => { const ok = game.buyTap(); if (ok) G.Audio.play('buy'); updatePanel(); return ok; });
+    } else if (tab === 'hero') {
+      buildHeroTab(p);
     } else if (tab === 'office') {
       p.insertAdjacentHTML('beforeend', `<div class="tip">辦公室升級是全隊永久加成，越後面的日子解鎖越多設備。</div>`);
       D.OFFICE.forEach(o => {
@@ -353,14 +468,183 @@
       });
       p.querySelectorAll('.titem').forEach(b => b.onclick = () => treasureInfo(b.dataset.t));
       const ob = $('#tOpen'); if (ob) ob.onclick = () => openChestUI();
-      p.insertAdjacentHTML('beforeend', `<div class="secT">員工名冊</div>` + D.HEROES.map(h => {
-        const lv = game.s.heroes[h.id], r = lv ? game.rank(lv) : 0;
-        return `<div class="card"><img src="art/char/${lv && r >= 2 ? 'pro_' : ''}${h.id}.webp" alt="${h.name}" style="${lv ? '' : 'filter:brightness(0) opacity(.35)'}"><div><b>${h.name}</b>　<small>${h.job}・${h.role}</small><div class="d">${lv ? `目前職位：<b>${h.ranks[r]}</b><br>升職路線：${h.ranks.join(' → ')}<br>口頭禪：「${h.lines[Math.floor(Math.random() * h.lines.length)]}」` : '尚未加入'}</div></div></div>`;
-      }).join(''));
       p.insertAdjacentHTML('beforeend', `<div class="secT">上班紀錄</div><div class="tip">上班時間 ${Math.floor(game.s.stats.play / 60)} 分鐘・打倒 ${G.fmt(game.s.stats.kills)} 個工作怪・大招 ${game.s.stats.ults} 次・催稿 ${G.fmt(game.s.stats.taps)} 次・開寶箱 ${game.s.stats.chests || 0} 個・最遠 ${E.stageName(game.s.maxStage).code}</div>`);
     }
     p.scrollTop = keep;
     updatePanel();
+  }
+  let builtKey = '';
+  function switchTab(t) {
+    if (t === tab) return;
+    G.Audio.play('tab');
+    tab = t; $('#tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.tab === t)); buildPanel();
+  }
+
+  // ---------- 同事分頁：招募、編隊、圖鑑 ----------
+  const HV = {};                                   // 目前同事分頁的 DOM 參考
+  const hf = { dept: 'all', rar: -1, own: false };  // 圖鑑篩選
+  function heroTabKey() { return [teamIds().join(','), teamSize(), ALL.filter(h => owned(h.id)).length, isUnlocked('recruit'), weakNow.join()].join('|'); }
+  function pityRows() {
+    if (game.pityInfo) return game.pityInfo() || [];
+    const p = game.s.pity, R = D.RECRUIT || {};
+    if (p == null) return [];
+    if (typeof p === 'number') return [{ name: 'SSR', cur: p, need: R.pitySSR || 30 }];
+    return [{ name: 'SSR', cur: p.ssr || 0, need: R.pitySSR || 30 }, { name: 'UR', cur: p.ur || 0, need: R.pityUR || 90 }];
+  }
+  const rcCost = n => game.recruitCost ? game.recruitCost(n) : n;
+  const canRc = n => isUnlocked('recruit') && (game.canRecruit ? game.canRecruit(n) : (game.s.resume || 0) >= rcCost(n));
+  function buildHeroTab(p) {
+    const s = game.s, rcOn = isUnlocked('recruit');
+    builtKey = heroTabKey();
+    // 招募
+    if (rcOn) {
+      p.insertAdjacentHTML('beforeend', `<div class="rcBar"><div class="rc1"><b><img class="resIc" src="art/ui/resume.webp" data-fb="res" alt="">履歷 <span id="hvRes"></span></b><small id="hvPity"></small></div>
+        <div class="rcBtns"><button class="rcb" id="hvRc1"></button><button class="rcb ten" id="hvRc10"></button></div></div>`);
+      $('#hvRc1').onclick = () => runRecruit(1);
+      $('#hvRc10').onclick = () => runRecruit(10);
+    } else {
+      const u = unlockOf('recruit');
+      p.insertAdjacentHTML('beforeend', `<div class="rcBar lock"><div class="rc1"><b>🔒 招募新同事</b><small>${unlockAtText(u)}・打怪會撿到履歷</small></div><div class="rcLockIc">📨</div></div>`);
+    }
+    // 編隊
+    const ids = teamIds(), size = teamSize();
+    p.insertAdjacentHTML('beforeend', `<div class="secT flex"><span>上場隊伍 <small>${ids.length}/${size}</small></span><button class="miniBtn" id="hvAuto">🤖 自動編隊</button></div>
+      ${deptBonusHTML()}
+      ${weakNow.length ? `<div class="weakTip">這章的怪怕：${weakText()}<small>對應部門的同事打它傷害 +50%</small></div>` : ''}
+      <div class="slots">${Array.from({ length: MAX_SLOTS }, (_, i) => {
+        if (i >= size) { const u = slotUnlock(i + 1); return `<button class="slot lock" data-slot="${i}"><span>🔒</span><small>${u ? unlockAtText(u).replace('解鎖', '') + '<br>解鎖' : '之後解鎖'}</small></button>`; }
+        const id = ids[i];
+        if (!id) return `<button class="slot empty" data-slot="${i}"><span>＋</span><small>點我選人</small></button>`;
+        const d = hdef(id);
+        return `<button class="slot r${rarOf(d)} ${weakSet.has(deptOf(d)) ? 'wk' : ''}" data-slot="${i}" style="--rc:${HR[rarOf(d)].color}">${faceHTML(id)}<b>${d.name}</b><small>Lv ${s.heroes[id] || 0}</small></button>`;
+      }).join('')}</div>`);
+    $('#hvAuto').onclick = autoTeam;
+    // 圖鑑
+    const own = ALL.filter(h => owned(h.id)).length;
+    p.insertAdjacentHTML('beforeend', `<div class="secT flex"><span>同事圖鑑 <b class="cnt">${own} / ${ALL.length}</b></span><label class="ownT"><input type="checkbox" id="hvOwn" ${hf.own ? 'checked' : ''}>只看已有</label></div>
+      <div class="depts">${['all'].concat(DEPT_KEYS).map(k => {
+        const L = k === 'all' ? ALL : ALL.filter(h => deptOf(h) === k), n = L.filter(h => owned(h.id)).length, d = DEPT[k];
+        return `<button class="dchip ${hf.dept === k ? 'on' : ''}" data-dept="${k}" style="--dc:${d ? d.color : '#7b5cff'}"><b>${d ? d.name : '全部'}</b><small>${n}/${L.length}</small><i style="transform:scaleX(${L.length ? (n / L.length).toFixed(3) : 0})"></i></button>`;
+      }).join('')}</div>
+      <div class="seg rseg">${[-1, 0, 1, 2, 3, 4].map(r => `<button data-rar="${r}" class="${hf.rar === r ? 'on' : ''}" style="${r >= 0 ? '--rc:' + HR[r].color : ''}">${r < 0 ? '全部' : HR[r].key}</button>`).join('')}</div>
+      <div class="hgrid" id="hvGrid"></div>`);
+    p.querySelectorAll('.dchip').forEach(b => b.onclick = () => { hf.dept = b.dataset.dept; p.querySelectorAll('.dchip').forEach(x => x.classList.toggle('on', x === b)); G.Audio.play('tab'); fillGrid(); });
+    p.querySelectorAll('.rseg button').forEach(b => b.onclick = () => { hf.rar = +b.dataset.rar; p.querySelectorAll('.rseg button').forEach(x => x.classList.toggle('on', x === b)); G.Audio.play('tab'); fillGrid(); });
+    $('#hvOwn').onchange = e => { hf.own = e.target.checked; G.Audio.play('tab'); fillGrid(); };
+    p.querySelectorAll('.slot').forEach(b => b.onclick = () => pickSlot(+b.dataset.slot));
+    Object.assign(HV, { res: $('#hvRes'), pity: $('#hvPity'), rc1: $('#hvRc1'), rc10: $('#hvRc10'), grid: $('#hvGrid') });
+    fillGrid();
+  }
+  function deptBonusHTML() {
+    const db = game.deptBonus ? game.deptBonus() : null;
+    if (db && db.dept && DEPT[db.dept]) return `<div class="dbTip">🤝 ${DEPT[db.dept].name} ${db.n} 人同隊：全隊攻擊 <b>+${Math.round(db.add * 100)}%</b></div>`;
+    if (isUnlocked('dept') && D.DEPT_BONUS) return `<div class="dbTip off">🤝 同部門 3 人以上上場，全隊攻擊加成</div>`;
+    return '';
+  }
+  function fillGrid() {
+    const g = HV.grid; if (!g) return;
+    const inTeam = new Set(teamIds());
+    const L = ALL.filter(h => (hf.dept === 'all' || deptOf(h) === hf.dept) && (hf.rar < 0 || rarOf(h) === hf.rar) && (!hf.own || owned(h.id)))
+      .sort((a, b) => rarOf(b) - rarOf(a) || DEPT_KEYS.indexOf(deptOf(a)) - DEPT_KEYS.indexOf(deptOf(b)));
+    g.innerHTML = L.length ? L.map(h => {
+      const id = h.id, o = owned(id), r = rarOf(h), st = starOf(id);
+      return `<button class="hcell r${r} ${o ? '' : 'no'} ${inTeam.has(id) ? 'on' : ''}" data-h="${id}" style="--rc:${HR[r].color};--dc:${DEPT[deptOf(h)].color}"><span class="fw">${faceHTML(id)}<em class="rk">${HR[r].key}</em>${inTeam.has(id) ? '<u>上場</u>' : o && weakSet.has(deptOf(h)) ? '<u class="w">剋</u>' : ''}</span><b>${h.name}</b><small>${o ? '★'.repeat(st) : '？？？'}</small></button>`;
+    }).join('') : '<p class="empty">這個條件還沒有同事</p>';
+    g.querySelectorAll('.hcell').forEach(b => b.onclick = () => heroInfo(b.dataset.h));
+    fixBroken(g);
+  }
+  function updateHeroTab() {
+    if (!HV.res || !HV.res.isConnected) return;
+    const s = game.s;
+    setText(HV.res, G.fmt(s.resume || 0));
+    setText(HV.pity, pityRows().map(r => `${r.name} 保底 ${Math.min(r.cur, r.need)}/${r.need}`).join('・'));
+    [[HV.rc1, 1, '單抽'], [HV.rc10, 10, '十連']].forEach(([b, n, t]) => {
+      const c = rcCost(n), ok = canRc(n);
+      setHTML(b, `${t}<small>${c > 0 ? '📄 ' + c : '免費！'}</small>${n === 10 ? '<em>SR 以上保證</em>' : ''}`);
+      cls(b, 'can', ok); cls(b, 'point', ok && !seen('tut_recruit') && (n === 10 || !canRc(10)));
+    });
+  }
+
+  // ---------- 編隊 ----------
+  function flushEvents() { for (const e of game.events) handle(e); game.events.length = 0; }
+  function applyTeam(ids) {
+    if (typeof game.setTeam !== 'function') { toast('編隊功能還在準備中'); return false; }
+    game.setTeam(ids); flushEvents();
+    G.Audio.play('join');
+    afterTeam();
+    return true;
+  }
+  function afterTeam() { if (G.Render.ensureHero) teamIds().forEach(id => G.Render.ensureHero(id)); updateTeam(); if (tab === 'hero' || tab === 'staff') buildPanel(); }
+  function autoTeam() {
+    G.Audio.unlock();
+    if (typeof game.autoTeam !== 'function') { toast('自動編隊還在準備中'); return; }
+    const before = teamIds().join(',');
+    game.autoTeam(); flushEvents();
+    const now = teamIds().join(',');
+    G.Audio.play(now !== before ? 'join' : 'tab');
+    toast(now !== before ? '🤖 自動編隊完成：照戰力和這章的弱點排好了' : '🤖 目前就是最好的隊伍了', 'good');
+    afterTeam();
+  }
+  function closeModal() { $('#modal').hidden = true; paused = storyQ.length > 0; }
+  // 點隊伍格：從已擁有的同事裡選
+  function pickSlot(i) {
+    G.Audio.unlock();
+    const size = teamSize();
+    if (i >= size) { const u = slotUnlock(i + 1); toast(`🔒 第 ${i + 1} 個隊伍格：${u ? unlockAtText(u) : '之後解鎖'}`); return; }
+    const ids = teamIds(), cur = ids[i];
+    const L = ALL.filter(h => owned(h.id)).sort((a, b) => (weakSet.has(deptOf(b)) - weakSet.has(deptOf(a))) || rarOf(b) - rarOf(a) || (game.s.heroes[b.id] || 0) - (game.s.heroes[a.id] || 0));
+    const btns = [['取消', false]];
+    if (cur && ids.length > 1) btns.unshift(['讓 ' + hdef(cur).name + ' 下場', false, () => applyTeam(ids.filter(x => x !== cur))]);
+    modal(`<h2>${cur ? '換掉「' + hdef(cur).name + '」' : '選一位上場'}</h2>${weakNow.length ? `<p class="small">這章的怪怕：${weakText()}（標「剋」的打它 +50%）</p>` : ''}
+      <div class="pkgrid">${L.map(h => {
+        const id = h.id, r = rarOf(h), j = ids.indexOf(id);
+        return `<button class="pk r${r} ${j >= 0 ? 'on' : ''}" data-h="${id}" style="--rc:${HR[r].color}"><span class="fw">${faceHTML(id)}${weakSet.has(deptOf(h)) ? '<u class="w">剋</u>' : ''}${j >= 0 ? '<u>上場</u>' : ''}</span><b>${h.name}</b><small>${HR[r].key}・Lv ${game.s.heroes[id] || 0}</small></button>`;
+      }).join('')}</div>`, btns);
+    const box = $('#modal .box');
+    fixBroken(box);
+    box.querySelectorAll('.pk').forEach(b => b.onclick = () => {
+      const id = b.dataset.h, n = ids.slice(), j = n.indexOf(id);
+      closeModal();
+      if (id === cur) return;
+      if (i < n.length) { if (j >= 0) n[j] = cur; n[i] = id; }
+      else { if (j >= 0) n.splice(j, 1); n.push(id); }
+      applyTeam(n);
+    });
+  }
+  function teamAdd(id) {
+    const ids = teamIds();
+    if (ids.includes(id)) return;
+    if (ids.length < teamSize()) { applyTeam(ids.concat(id)); return; }
+    modal(`<h2>隊伍滿了，換下誰？</h2><p class="small">讓「${hdef(id).name}」上場</p><div class="pkgrid">${ids.map(x => {
+      const h = hdef(x), r = rarOf(h);
+      return `<button class="pk r${r}" data-h="${x}" style="--rc:${HR[r].color}"><span class="fw">${faceHTML(x)}</span><b>${h.name}</b><small>Lv ${game.s.heroes[x] || 0}</small></button>`;
+    }).join('')}</div>`, [['取消', false]]);
+    const box = $('#modal .box'); fixBroken(box);
+    box.querySelectorAll('.pk').forEach(b => b.onclick = () => { closeModal(); applyTeam(ids.map(x => x === b.dataset.h ? id : x)); });
+  }
+  function teamRemove(id) {
+    const ids = teamIds();
+    if (ids.length <= 1) { toast('至少要留一位同事上場'); return; }
+    applyTeam(ids.filter(x => x !== id));
+  }
+  // 同事詳細
+  function heroInfo(id) {
+    G.Audio.play('tab');
+    const h = hdef(id), o = owned(id), r = rarOf(h), R0 = HR[r], dk = deptOf(h), dp = DEPT[dk], sk = skillOf(h), st = starOf(id);
+    const inTeam = teamIds().includes(id), lv = game.s.heroes[id] || 0;
+    let ab = '';
+    if (o) {
+      try { ab = `Lv ${lv}・攻擊 <b>${G.fmt(game.heroAtk(id))}</b>・血量 <b>${G.fmt(game.heroHp(id))}</b>`; } catch (er) { ab = 'Lv ' + lv; }
+    }
+    const roleDesc = (D.ROLES && D.ROLES[h.role] && D.ROLES[h.role].desc) || '';
+    modal(`<div class="hinfo r${r} ${o ? '' : 'no'}" style="--rc:${R0.color};--dc:${dp.color}"><div class="hrays"></div>${bodyHTML(id)}${weakSet.has(dk) && o ? '<u class="w">剋</u>' : ''}</div>
+      <h2>${h.name}</h2><p class="tstar">${o ? stars(st, 5) : ''}</p>
+      <p class="tags"><span class="rtagI" style="background:${R0.color}">${R0.key} ${R0.name}</span><span class="rtagI" style="background:${dp.color}">${dp.name}</span><span class="jtag">${h.job || ''}${h.role ? '・' + roleName(h) : ''}</span></p>
+      ${o ? `<div class="hsk"><b>⚡ ${sk.name}</b>${sk.desc ? '<br>' + sk.desc : ''}${h.passive ? '<br>✦ ' + h.passive : ''}${roleDesc ? `<br><small>${roleName(h)}：${roleDesc}</small>` : ''}</div>
+        <p class="lore">「${lineOf(h)}」</p><p class="small">${ab}${st < 5 ? '<br>再抽到一次會升星，能力提升' : '<br>已滿星！'}</p>`
+        : `<div class="hsk">大招與口頭禪：招募後揭曉</div><p class="small">${h.joinAt && HERO[id] ? `通過 ${E.stageName(h.joinAt - 1).code} 後加入` : '用履歷招募有機會遇到'}</p>`}`,
+      o ? (inTeam ? [['下場', false, () => teamRemove(id)], ['關閉', true]] : [['⬆ 上場', true, () => teamAdd(id)], ['關閉', false]]) : [['關閉', true]]);
+    fixBroken($('#modal .box'));
   }
   function questProg(q) {
     if (game.questProg) return game.questProg(q);
@@ -383,9 +667,11 @@
   // 新手手指要指哪裡：'tab:staff' 或某一列的按鈕
   function tutTarget() {
     const s = game.s;
-    if (s.autoBuy || paused) return null;
+    if (paused) return null;
+    if (!seen('tut_recruit') && tab !== 'hero' && canRc(1)) return 'tab:hero';
+    if (s.autoBuy) return null;
     if (!seen('tut_buy')) {
-      const id = D.ORDER.find(x => s.heroes[x] > 0 && game.heroCost(x) <= s.gold);
+      const id = teamIds().find(x => s.heroes[x] > 0 && game.heroCost(x) <= s.gold);
       if (id) return tab === 'staff' ? 'hero:' + id : 'tab:staff';
     }
     if (s.farming && anyAffordable() && !seen('tut_one')) return tab === 'staff' ? 'one' : 'tab:staff';
@@ -394,6 +680,8 @@
 
   function updatePanel() {
     const s = game.s, tt = tutTarget();
+    if (tab === 'staff' && teamIds().join(',') !== builtKey) { buildPanel(); return; }
+    if (tab === 'hero') { if (heroTabKey() !== builtKey) { buildPanel(); return; } updateHeroTab(); }
     if (tab === 'staff') {
       const tip = $('#staffTip');
       if (tip) {
@@ -408,15 +696,17 @@
     }
     for (const r of rows) {
       if (r.kind === 'hero') {
-        const id = r.id, h = HERO[id], lv = s.heroes[id];
+        const id = r.id, h = r.def, lv = s.heroes[id] || 0, rks = h.ranks;
         cls(r.el, 'lock', lv === 0);
-        const st = faceStyle(id, 200); if (r.pic._st !== st) { r.pic._st = st; r.pic.setAttribute('style', st); }
+        if (HERO[id]) { const st = faceStyle(id, 200); if (r.pic._st !== st) { r.pic._st = st; r.pic.setAttribute('style', st + ';--rc:' + HR[rarOf(h)].color); } }
         setText(r.lv, lv ? 'Lv ' + lv : '未加入');
         const rk = lv ? game.rank(lv) : 0;
-        setText(r.rk, h.ranks[rk]);
-        const nextRank = D.CURVE.rankAt.find(a => a > lv), prevRank = D.CURVE.rankAt[rk] || 1;
-        setHTML(r.st, lv ? `攻擊 <b>${G.fmt(game.heroAtk(id))}</b>・血量 <b>${G.fmt(game.heroHp(id))}</b>${nextRank ? `<br>Lv ${nextRank} 升職：${h.ranks[rk + 1]}` : '<br>已到最高職位'}` : `通過 ${E.stageName(h.joinAt - 1).code} 後加入`);
-        bar(r.prog, lv && nextRank ? (lv - prevRank) / (nextRank - prevRank) : lv ? 1 : 0);
+        setText(r.rk, rks ? rks[rk] : HR[rarOf(h)].key + '・' + roleName(h) + (starOf(id) ? '・' + '★'.repeat(starOf(id)) : ''));
+        const nextRank = rks ? D.CURVE.rankAt.find(a => a > lv) : null, prevRank = D.CURVE.rankAt[rk] || 1;
+        let stx = `攻擊 <b>${G.fmt(game.heroAtk(id))}</b>・血量 <b>${G.fmt(game.heroHp(id))}</b>`;
+        if (rks) stx += nextRank ? `<br>Lv ${nextRank} 升職：${rks[rk + 1]}` : '<br>已到最高職位';
+        setHTML(r.st, lv ? stx : h.joinAt ? `通過 ${E.stageName(h.joinAt - 1).code} 後加入` : '還沒招募到');
+        if (r.prog) bar(r.prog, lv && nextRank ? (lv - prevRank) / (nextRank - prevRank) : lv ? 1 : 0);
         if (lv) {
           const n = heroBuyCount(id), c = game.heroCost(id, n), up = nextRank && lv + n >= nextRank;
           setHTML(r.b, `${up ? '<em>升職！</em>' : ''}升級${n > 1 ? ' ×' + n : ''}<small>💰${G.fmt(c)}</small>`);
@@ -441,18 +731,20 @@
       } else if (r.kind === 'quest') {
         const q = r.q, [c, n] = questProg(q), done = !!s.quests[q.id];
         cls(r.el, 'done', done);
-        setText(r.st, `${G.fmt(Math.min(c, n))} / ${G.fmt(n)}・獎勵 💰${G.fmt(q.gold)}`);
+        setText(r.st, `${G.fmt(Math.min(c, n))} / ${G.fmt(n)}・獎勵 ${[q.gold ? '💰' + G.fmt(q.gold) : '', q.resume ? '📄 履歷 ×' + q.resume : ''].filter(Boolean).join(' ')}`);
         bar(r.prog, c / n);
         setText(r.b, done ? '已領' : '領取'); dis(r.b, done || c < n); cls(r.b, 'can', !done && c >= n);
       }
     }
     // 分頁紅點
     const auto = !!s.autoBuy;
-    hide(tabs.staffDot, auto || tab === 'staff' || !D.ORDER.some(id => s.heroes[id] > 0 && game.heroCost(id) <= s.gold));
+    hide(tabs.staffDot, auto || tab === 'staff' || !teamIds().some(id => s.heroes[id] > 0 && game.heroCost(id) <= s.gold));
+    hide(tabs.heroDot, tab === 'hero' || !canRc(seen('tut_recruit') ? 10 : 1));
     hide(tabs.officeDot, auto || tab === 'office' || !officeAffordable());
     hide(tabs.questDot, tab === 'quest' || !questReady());
     hide(tabs.lootDot, tab === 'loot' || !game.chestCount());
     cls(tabs.staff, 'point', tt === 'tab:staff');
+    cls(tabs.hero, 'point', tt === 'tab:hero');
   }
   const tabs = {};
 
@@ -539,6 +831,106 @@
     if (tab === 'loot') buildPanel();
   }
 
+  // ---------- 招募演出：信封飛出 → 蓄光 → 爆開 →（SSR/UR 全身登場）→ 結果 ----------
+  const RC = {};
+  let rcBusy = false, rcSkip = false, rcWake = null, rcN = 1;
+  const rcWait = ms => new Promise(res => {
+    if (rcSkip) return res();
+    const t = setTimeout(() => { rcWake = null; res(); }, ms);
+    rcWake = () => { clearTimeout(t); rcWake = null; res(); };
+  });
+  const rarR = r => r.rar != null ? r.rar : rarOf(r.def || hdef(r.id));
+  function rcTag(r) { return r.maxed ? '滿星換薪水' : r.isNew ? 'NEW!' : '★' + (r.star || 1) + ' 升星'; }
+  function rcCard(r) {
+    const id = r.id, h = r.def || hdef(id), rr = rarR(r);
+    return `<div class="rcc r${rr}" style="--rc:${HR[rr].color}"><div class="bk"><i></i></div><div class="fr"><span class="fw">${faceHTML(id)}<em class="rk">${HR[rr].key}</em></span><b>${h.name}</b><small class="${r.isNew ? 'new' : ''}">${rcTag(r)}</small></div></div>`;
+  }
+  async function runRecruit(n) {
+    G.Audio.unlock();
+    if (rcBusy) return;
+    if (!isUnlocked('recruit') || typeof game.recruit !== 'function') { toast('🔒 ' + unlockAtText(unlockOf('recruit')) + '招募'); return; }
+    if (!canRc(n)) { const need = rcCost(n) - (game.s.resume || 0); toast(`📄 履歷不夠${need > 0 ? '，還差 ' + need + ' 張' : ''}！打怪、打頭目都會掉履歷`); return; }
+    rcBusy = true;
+    let res;
+    try { res = game.recruit(n); flushEvents(); } catch (er) { console.error(er); }
+    if (!res || !res.length) { rcBusy = false; toast('招募失敗，再試一次'); return; }
+    mark('tut_recruit');
+    rcN = n; rcSkip = false; paused = true;
+    const best = Math.max(...res.map(rarR)), A = G.Audio;
+    RC.el.hidden = false; RC.el.className = 'overlay b' + best;
+    RC.one.hidden = true; RC.grid.hidden = true; RC.cut.hidden = true; RC.btns.hidden = true; RC.skip.hidden = false;
+    setText(RC.info, n === 10 ? '十連招募' : '招募中…');
+    // 1. 信封飛進來（封蠟顏色偷偷透露最高稀有度）
+    RC.env.hidden = false; RC.env.className = 'rcEnv fly s' + Math.min(best, 4);
+    RC.stage.className = 'rcStage';
+    A.play('envelope');
+    await rcWait(1000);
+    // 2. 蓄光
+    RC.env.className = 'rcEnv charge s' + Math.min(best, 4);
+    if (best >= 3) A.play('roll');
+    await rcWait(best >= 3 ? 1400 : 700);
+    // 3. 爆開
+    RC.env.hidden = true; RC.stage.className = 'rcStage r' + best;
+    rcFlash(best);
+    A.play('rcGlow', best);
+    if (n === 1) {
+      const r = res[0];
+      if (rarR(r) >= 3 && !rcSkip) await cutIn(r);
+      rcShowOne(r);
+    } else {
+      RC.grid.innerHTML = res.map(rcCard).join(''); RC.grid.hidden = false; fixBroken(RC.grid);
+      const cards = RC.grid.children;
+      await rcWait(350);
+      for (let i = 0; i < res.length; i++) {
+        const r = res[i], rr = rarR(r);
+        if (rr >= 3 && !rcSkip) await cutIn(r);
+        cards[i].classList.add('open');
+        if (!rcSkip) { A.play('flip', rr); await rcWait(rr >= 2 ? 260 : 150); }
+      }
+      for (const c of cards) c.classList.add('open');
+      const nw = res.filter(r => r.isNew).length;
+      setText(RC.info, `新同事 ${nw} 位・升星 ${res.length - nw} 位`);
+    }
+    if (best >= 2) confetti(RC.stage);
+    RC.skip.hidden = true; RC.cut.hidden = true;
+    rcButtons();
+    rcBusy = false;
+    if (tab === 'hero') buildPanel();
+  }
+  function rcFlash(best) {
+    const f = RC.flash; f.className = 'rcFlash'; void f.offsetWidth; f.className = 'rcFlash go s' + best;   // 只在演出時讀一次版面
+    if (best >= 3 && navigator.vibrate) try { navigator.vibrate(best >= 4 ? [40, 50, 80] : 40); } catch (er) {}
+  }
+  function rcShowOne(r) {
+    const id = r.id, h = r.def || hdef(id), rr = rarR(r), R0 = HR[rr];
+    RC.one.innerHTML = `<div class="oneArt">${bodyHTML(id)}</div><span class="rtag ${r.isNew ? 'new' : ''}">${rcTag(r)}</span><b class="rname" style="color:${R0.color}">${R0.key}・${h.name}</b><div class="rstar">${stars(r.star || 1, 5)}</div><p class="rjob">${DEPT[deptOf(h)].name}・${h.job || ''}</p><p class="rlore">「${lineOf(h)}」</p>`;
+    RC.one.hidden = false; fixBroken(RC.one);
+    setText(RC.info, '');
+  }
+  // SSR／UR 全身登場＋台詞（點一下繼續）
+  async function cutIn(r) {
+    const id = r.id, h = r.def || hdef(id), rr = rarR(r), R0 = HR[rr];
+    RC.cut.className = 'rcCut r' + rr;
+    RC.cut.innerHTML = `<div class="cutRays"></div><div class="cutBand"></div>${bodyHTML(id, 'cutImg')}<div class="cutTx"><span class="cutTag" style="background:${R0.color}">${R0.key} ${R0.name}</span>${r.isNew ? '<span class="cutNew">NEW</span>' : ''}<b class="cutName">${h.name}</b><small>${DEPT[deptOf(h)].name}・${h.job || ''}</small></div><p class="cutLine">「${lineOf(h)}」</p><span class="cutNext">點一下繼續 ▶</span>`;
+    RC.cut.hidden = false; fixBroken(RC.cut);
+    G.Audio.play(rr >= 4 ? 'urIn' : 'ssrIn');
+    rcFlash(rr);
+    confetti(RC.cut);
+    await rcWait(rr >= 4 ? 4200 : 3200);
+    RC.cut.hidden = true;
+  }
+  function rcButtons() {
+    const c = rcCost(rcN);
+    RC.again.innerHTML = `再${rcN === 10 ? '十連' : '抽一次'}<small>${c > 0 ? '📄 ' + c : '免費'}・剩 ${G.fmt(game.s.resume || 0)}</small>`;
+    RC.again.disabled = !canRc(rcN);
+    RC.btns.hidden = false;
+  }
+  function closeRecruit() {
+    if (rcBusy) return;
+    RC.el.hidden = true; paused = storyQ.length > 0 || !$('#modal').hidden;
+    if (tab === 'hero' || tab === 'staff') buildPanel();
+  }
+
   // ---------- 打不過頭目 ----------
   function failSheet(e) {
     const s = game.s, boss = E.isBoss(e.s), key = 'fail_' + e.s, cnt = (s.seen[key] || 0) + 1;
@@ -550,7 +942,7 @@
     const can = anyAffordable(), cn = game.cheerN ? game.cheerN() : 0;
     const cheerLi = cn ? `<li>📣 同事幫你打氣：全隊攻擊、血量 <b>×${(+game.cheerMul().toFixed(1))}</b></li>` : '';
     modal(`<div class="sheetIc">😵</div><h2>打不贏${boss ? '「' + name + '」' : '了'}…</h2><p>${why}</p>
-      <ul class="howto">${cheerLi}<li>大家會<b>回到上一關自動練功</b>賺薪水，不會掉任何東西</li><li>${can ? '你現在的薪水<b>可以升級</b>，按下面「一鍵升級」就好' : '多打幾隻怪，薪水夠了就升級'}</li><li>${E.chapterOf(s.maxStage) >= 1 ? '辦公室的<b>咖啡機、椅子</b>是全隊加成' : '點畫面<b>催稿</b>、放<b>大招</b>可以打得更快'}</li><li>練功過兩關會<b>自動再挑戰</b>，也可以按「挑戰頭目」</li></ul>`,
+      <ul class="howto">${cheerLi}<li>大家會<b>回到上一關自動練功</b>賺薪水，不會掉任何東西</li><li>${can ? '你現在的薪水<b>可以升級</b>，按下面「一鍵升級」就好' : '多打幾隻怪，薪水夠了就升級'}</li>${weakNow.length && !teamIds().some(id => weakSet.has(deptOf(hdef(id)))) ? `<li>這裡的怪怕 ${weakText()}，到「同事」換人<b>傷害 +50%</b></li>` : `<li>${E.chapterOf(s.maxStage) >= 1 ? '辦公室的<b>咖啡機、椅子</b>是全隊加成' : '點畫面<b>催稿</b>、放<b>大招</b>可以打得更快'}</li>`}<li>練功過兩關會<b>自動再挑戰</b>，也可以按「挑戰頭目」</li></ul>`,
       can ? [['⚡ 一鍵升級', true, () => { mark('tut_one'); oneClick(); }], ['知道了', false]] : [['知道了', true]]);
   }
 
@@ -561,15 +953,43 @@
     rnd.onEvent(e);
     const A = G.Audio;
     switch (e.type) {
-      case 'hit': if (e.crit) A.play('crit'); else if (e.src !== 'tap') A.play('hit'); break;
+      case 'hit': if (e.weak) A.play('weak'); if (e.crit) A.play('crit'); else if (e.src !== 'tap') A.play('hit'); break;
+      case 'heal': A.play('heal'); break;
+      case 'recruit': {
+        buildPanelSoon();
+        if (rcBusy || !e.results || !e.results.length) break;
+        const L = e.results, best = L.reduce((a, r) => rarR(r) > rarR(a) ? r : a, L[0]), nw = L.filter(r => r.isNew).length;
+        if (rarR(best) >= 3) celebrate('', `${e.auto ? '自動招募：' : ''}${HR[rarR(best)].key}「${hdef(best.id).name}」${best.isNew ? '加入！' : '升星！'}`, `「${lineOf(hdef(best.id))}」`, best.id);
+        else if (!e.auto) toast(`📨 招募 ${L.length} 次：${nw ? '新同事 ' + nw + ' 位' : '全部升星'}${rarR(best) >= 2 ? '（有 SR！）' : ''}`, 'good');
+        else {                                                  // 自動招募：15 秒最多一則
+          autoRc.n += L.length; autoRc.nw += nw;
+          const now = performance.now();
+          if (now - autoRc.t > 15000) { toast(`🤖 自動招募 ${autoRc.n} 次${autoRc.nw ? '：新同事 ' + autoRc.nw + ' 位' : ''}`, 'good'); autoRc.t = now; autoRc.n = autoRc.nw = 0; }
+        }
+        break;
+      }
+      case 'resume':
+        if (e.why === 'gift') { mark('tut_resume'); toast(`🎁 老員工福利：補發 ${e.n} 份履歷，到「同事」招募新同事！`, 'bonus'); }
+        resumeGain(e.n || 1);
+        break;
+      case 'teamChange': teamKey = ''; buildPanelSoon(); break;
+      case 'unlock': {
+        const u = e.u || {}, k = String(u.key || '');
+        if (/auto.?buy/i.test(k)) mark('tut_autobuy');
+        A.play('unlock');
+        if (e.gift) { celebrate('📨', 'v1.3 新功能：招募同事！', '100 位同事等你收集，到「同事」分頁看看'); buildPanelSoon(); break; }
+        celebrate('🔓', `解鎖「${u.text || k}」`, UNLOCK_SUB[k] || (/slot|team/i.test(k) ? '隊伍可以多帶一位同事了！' : ''));
+        buildPanelSoon();
+        break;
+      }
       case 'kill': A.play(e.e.boss ? 'clear' : 'kill'); setTimeout(() => A.play('coin'), 350); break;
       case 'hurt': A.play('hurt'); break;
       case 'down': A.play('down'); break;
       case 'ult': A.play('ult'); break;
       case 'levelup':
         mark('tut_buy');
-        if (e.rankUp) {
-          const h = HERO[e.id];
+        if (e.rankUp && hdef(e.id).ranks) {
+          const h = hdef(e.id);
           A.play('levelup');
           celebrate('', `${h.name} 升職！`, `「${h.ranks[e.rankUp]}」${e.rankUp === 2 ? '・換上新造型！' : '・能力大幅提升'}`, e.id);
           buildPanelSoon();
@@ -597,7 +1017,12 @@
         if (o && (game.s.seen.tut_perk || 0) < 2) { game.s.seen.tut_perk = (game.s.seen.tut_perk || 0) + 1; toast(`🎁 公司福利：${o.icon} ${o.name}免費升一級！`, 'good'); }
         break;
       }
-      case 'quest': A.play('coin'); toast(`📋 任務完成！薪水 +${G.fmt(e.gold)}`, 'good'); break;
+      case 'quest': {
+        A.play('coin');
+        const rs = e.resume || (e.q && e.q.resume) || 0;
+        toast('📋 任務完成！' + [e.gold ? '薪水 +' + G.fmt(e.gold) : '', rs ? '履歷 +' + rs : ''].filter(Boolean).join('・'), 'good');
+        break;
+      }
       case 'shieldBreak': A.play(e.timeout ? 'hurt' : 'shield'); break;
       case 'chest':
         A.play('coin');
@@ -629,7 +1054,20 @@
     }
   }
   let pendingFail = null;
-  let rebuildT = 0; function buildPanelSoon() { if (tab === 'loot') rebuildT = 0.05; }   // 其他分頁 updatePanel 會自己更新
+  let rebuildT = 0; function buildPanelSoon() { if (tab === 'loot' || tab === 'hero' || tab === 'staff') rebuildT = 0.05; }
+  const autoRc = { n: 0, nw: 0, t: -1e9 };
+  const UNLOCK_SUB = { recruit: '用履歷招募新同事！到「同事」分頁看看', autobuy: '打開後薪水會自動花在最划算的地方' };
+  // 掉履歷：不洗版，只跳頂部數字與小小 +N
+  let resAcc = 0, resT = 0;
+  function resumeGain(n) {
+    resAcc += n;
+    G.Audio.play('paper');
+    if (!seen('tut_resume')) { mark('tut_resume'); toast('📄 撿到履歷！可以拿來招募新同事', 'good'); }
+    if (resT > 0) { setText(top.resPlus, '+' + resAcc); return; }
+    resT = 1.2;
+    setText(top.resPlus, '+' + resAcc);
+    top.resPlus.classList.remove('go'); void top.resPlus.offsetWidth; top.resPlus.classList.add('go');
+  }   // 其他分頁 updatePanel 會自己更新
 
   function ending() {
     const s = game.s;
@@ -655,7 +1093,7 @@
   }
 
   // ---------- 主迴圈 ----------
-  let last = 0, saveT = 0, topT = 0, panelT = 0;
+  let last = 0, saveT = 0, topT = 0, panelT = 0, goalT = 0;
   // 幀率低時切成小步，遊戲仍照實際時間推進
   function step(dt) {
     for (let left = dt; left > 1e-4 && !paused; left -= 0.05) {
@@ -681,17 +1119,33 @@
     if (cbT > 0) { cbT -= dt; if (cbT <= 0) $('#celebrate').hidden = true; }
     else if (cbQ.length && !paused) showCelebrate();      // 劇情、對話框期間先排隊
     if (rebuildT > 0) { rebuildT -= dt; if (rebuildT <= 0) buildPanel(); }
+    if (resT > 0) { resT -= dt; if (resT <= 0) resAcc = 0; }
     saveT -= dt; if (saveT <= 0) { saveT = 3; save(); }
   }
 
   async function boot() {
     const saved = loadSave();
     game = G.__game = new E.Game(saved);
+    const bootEv = game.events.filter(e => e.gift || e.why === 'gift');   // 舊存檔補發履歷：開始上班後再提示
     game.events.length = 0;
     goldShown = game.s.gold;
     rnd = new G.Render.Renderer($('#cv'), game);
-    Object.assign(top, { day: $('#stDay'), code: $('#stCode'), name: $('#stName'), waves: $('#waves'), gold: $('#gold'), goldBox: $('#goldBox'), btnBoss: $('#btnBoss'), dps: $('#dps'), autoWrap: $('#autoWrap'), autoBuyWrap: $('#autoBuyWrap'), autoUlt: $('#autoUlt'), autoBuy: $('#autoBuy'), hint: $('#hint'), btnChest: $('#btnChest'), chestN: $('#chestN'), cheer: $('#cheer'), buff: { gold: $('#bfGold'), aspd: $('#bfAspd'), atk: $('#bfAtk') } });
-    Object.assign(tabs, { staffDot: $('#staffDot'), officeDot: $('#officeDot'), questDot: $('#questDot'), lootDot: $('#lootDot'), staff: $('#tabs [data-tab="staff"]') });
+    Object.assign(top, { day: $('#stDay'), code: $('#stCode'), name: $('#stName'), waves: $('#waves'), gold: $('#gold'), goldBox: $('#goldBox'), btnBoss: $('#btnBoss'), dps: $('#dps'), autoWrap: $('#autoWrap'), autoBuyWrap: $('#autoBuyWrap'), autoUlt: $('#autoUlt'), autoBuy: $('#autoBuy'), hint: $('#hint'), btnChest: $('#btnChest'), chestN: $('#chestN'), cheer: $('#cheer'), buff: { gold: $('#bfGold'), aspd: $('#bfAspd'), atk: $('#bfAtk') }, resBox: $('#resBox'), resume: $('#resume'), resPlus: $('#resPlus'), goal: $('#goal'), goalTx: $('#goalTx'), goalBar: $('#goalBar') });
+    Object.assign(tabs, { staffDot: $('#staffDot'), officeDot: $('#officeDot'), questDot: $('#questDot'), lootDot: $('#lootDot'), staff: $('#tabs [data-tab="staff"]'), heroDot: $('#heroDot'), hero: $('#tabs [data-tab="hero"]') });
+    Object.assign(RC, { el: $('#rcUI'), stage: $('#rcUI .rcStage'), env: $('#rcUI .rcEnv'), one: $('#rcUI .rcOne'), grid: $('#rcUI .rcGrid'), cut: $('#rcUI .rcCut'), flash: $('#rcUI .rcFlash'), info: $('#rcUI .rcInfo'), btns: $('#rcUI .btns'), again: $('#rcAgain'), skip: $('#rcSkip') });
+    RC.el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; if (rcWake) { G.Audio.play('tab'); rcWake(); } });
+    RC.skip.addEventListener('pointerdown', e => { e.stopPropagation(); rcSkip = true; RC.cut.hidden = true; if (rcWake) rcWake(); });
+    RC.again.onclick = () => { if (!rcBusy) runRecruit(rcN); };
+    $('#rcOk').onclick = closeRecruit;
+    $('#resBox').onclick = () => { if (isUnlocked('recruit')) switchTab('hero'); else toast('📄 履歷：' + unlockAtText(unlockOf('recruit')) + '招募後可以用'); };
+    $('#team').addEventListener('pointerdown', e => { const el = e.target.closest('.hc'); if (el) tapTeam(el.dataset.id); });
+    fixBroken();
+    // 擋兩指放大、雙擊放大、Ctrl＋滾輪、長按選單
+    ['gesturestart', 'gesturechange'].forEach(k => document.addEventListener(k, e => e.preventDefault(), { passive: false }));
+    document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+    addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+    document.addEventListener('contextmenu', e => e.preventDefault());
     Object.assign(CU, { el: $('#chestUI'), stage: $('#chestUI .cstage'), chest: $('#chestUI .chestImg'), reveal: $('#chestUI .reveal'), rimg: $('#chestUI .rimg'), rtag: $('#chestUI .rtag'), rname: $('#chestUI .rname'), rstar: $('#chestUI .rstar'), rfx: $('#chestUI .rfx'), rlore: $('#chestUI .rlore'), list: $('#chestUI .clist'), info: $('#chestUI .cinfo'), open: $('#cOpen'), all: $('#cAll') });
     CU.open.onclick = () => { if (!CU.list.hidden) { closeChestUI(); return; } revealOne(); };
     CU.chest.onclick = () => { if (CU.reveal.hidden) revealOne(); };
@@ -700,9 +1154,7 @@
     $('#btnChest').onclick = openChestUI;
     buildTeam(); buildPanel();
     $('#tabs').addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b || b.dataset.tab === tab) return;
-      G.Audio.play('tab');
-      tab = b.dataset.tab; $('#tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); buildPanel();
+      const b = e.target.closest('button'); if (b) switchTab(b.dataset.tab);
     });
     $('#cv').addEventListener('pointerdown', e => {
       G.Audio.unlock(); if (paused) return;
@@ -724,12 +1176,13 @@
     addEventListener('pagehide', save);
     paused = true;
     let ready = false, want = false;
-    const btn = $('#btnStart'), label = saved && saved.stats.play > 5 ? '繼續上班' : '開始上班';
+    const btn = $('#btnStart'), label = saved && saved.stats && saved.stats.play > 5 ? '繼續上班' : '開始上班';
     btn.textContent = label;
     const start = () => {
       $('#title').hidden = true; paused = false;
       game.startStage(); game.events.length = 0;
       if (game.s.stage === 0) story('intro0');
+      bootEv.forEach(handle); bootEv.length = 0;
     };
     btn.onclick = () => {
       G.Audio.unlock(); G.Audio.play('tab');

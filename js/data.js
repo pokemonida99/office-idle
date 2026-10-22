@@ -2,7 +2,7 @@
 (function (G) {
   const HEROES = [
     {
-      id: 'mi', name: '小米', job: '客服', role: '坦克', color: '#6d8fd6',
+      id: 'mi', name: '小米', job: '客服', dept: 'cs', rar: 3, role: 'tank', legacy: true, color: '#6d8fd6', line: '您好～這邊幫您處理喔',
       atk: 6, hp: 160, aspd: 0.9, x: 224, cost: 10,
       ranks: ['客服專員', '資深客服', '客服組長', '客服之神'],
       skill: { name: '您的來電對我們很重要', desc: '全隊獲得護盾（小米血量 40%），敵人全部「請稍候」暈 2.5 秒' },
@@ -18,7 +18,7 @@
       }
     },
     {
-      id: 'jie', name: '阿傑', job: '老鳥設計師', role: '爆擊', color: '#c98a4b',
+      id: 'jie', name: '阿傑', job: '老鳥設計師', dept: 'design', rar: 3, role: 'crit', legacy: true, color: '#c98a4b', line: '第一版就是最終版',
       atk: 15, hp: 95, aspd: 0.7, x: 176, cost: 40, joinAt: 2,
       ranks: ['資深設計師', '設計主管', '創意總監', '傳說中的阿傑'],
       skill: { name: '一稿過', desc: '對血量最高的敵人造成 1500% 傷害，必定爆擊' },
@@ -34,7 +34,7 @@
       }
     },
     {
-      id: 'kui', name: '小葵', job: '新銳設計師', role: '範圍輸出', color: '#e0954a',
+      id: 'kui', name: '小葵', job: '新銳設計師', dept: 'design', rar: 3, role: 'aoe', legacy: true, color: '#e0954a', line: '這版我很有信心！',
       atk: 10, hp: 85, aspd: 0.8, x: 126, cost: 15,
       ranks: ['新銳設計師', '視覺設計師', '主視覺設計師', '藝術總監'],
       skill: { name: '靈感爆發', desc: '顏料炸彈轟炸全體敵人，每隻造成 450% 傷害' },
@@ -50,7 +50,7 @@
       }
     },
     {
-      id: 'vivi', name: 'Vivi 老闆', job: '老闆', role: '輔助', color: '#ec5f9e',
+      id: 'vivi', name: 'Vivi 老闆', job: '老闆', dept: 'sales', rar: 3, role: 'support', legacy: true, color: '#ec5f9e', line: '年底一定會加薪',
       atk: 8, hp: 110, aspd: 0.75, x: 72, cost: 120, joinAt: 10,
       ranks: ['老闆', '董事長', '集團總裁', '商業女王'],
       skill: { name: '畫大餅', desc: '全隊攻擊 +80%、攻速 +40%，持續 8 秒，並撒下一陣薪水雨' },
@@ -66,51 +66,141 @@
       }
     }
   ];
-  // 陣型由前到後：小米、阿傑、小葵、Vivi
+  // 原本四人（陣型由前到後）；v1.3 起實際上場的人看 s.team，站位依職業自動排
   const ORDER = ['mi', 'jie', 'kui', 'vivi'];
 
+  // ---------- v1.3 同事收集 ----------
+  // 部門：敵人的 weak 是部門 key，該部門的同事打它傷害 × WEAK
+  const DEPTS = {
+    design: { name: '設計部', short: '設計', color: '#f08a24', emoji: '🎨', icon: 'art/ui/dept_design.webp' },
+    cs:     { name: '客服部', short: '客服', color: '#2f9be8', emoji: '🎧', icon: 'art/ui/dept_cs.webp' },
+    eng:    { name: '工程部', short: '工程', color: '#8a55e0', emoji: '💻', icon: 'art/ui/dept_eng.webp' },
+    sales:  { name: '業務部', short: '業務', color: '#e23d3d', emoji: '💼', icon: 'art/ui/dept_sales.webp' },
+    admin:  { name: '行政部', short: '行政', color: '#e2b123', emoji: '📎', icon: 'art/ui/dept_admin.webp' }
+  };
+  const WEAK = 1.5;
+  // 同部門 n 人以上上場：全隊攻擊 +add（通過 at 關後生效）
+  const DEPT_BONUS = { at: 8, add: { 3: 0.1, 4: 0.18, 5: 0.28 } };
+
+  // 職業：基礎能力（傳說 SSR ★1 的數值，原本四人就是這組）、陣型順序（小 = 前排）、普攻特效、技能說明
+  // 普攻特效 shot：wave 聲波、slash 刀光、paint 顏料、money 鈔票、heal 治療光、arrow 便利貼飛鏢、stamp 印章、code 程式碼、paper 文件
+  const ROLES = {
+    tank:    { name: '坦克', icon: '🛡️', order: 0, atk: 6, hp: 160, aspd: 0.9, shot: 'wave',
+               passive: '敵人優先攻擊他，受傷也會充能', skill: '全隊獲得護盾（自身血量 40%），敵人全部暈 2.5 秒' },
+    crit:    { name: '爆擊', icon: '⚡', order: 1, atk: 15, hp: 95, aspd: 0.7, shot: 'slash',
+               passive: '25% 機率爆擊，造成 2.5 倍傷害', skill: '對血量最高的敵人造成 1500% 傷害，必定爆擊' },
+    dps:     { name: '單體', icon: '🎯', order: 2, atk: 16, hp: 100, aspd: 0.85, shot: 'arrow',
+               passive: '打護盾的效果加倍', skill: '對最前面的敵人造成 1000% 傷害（護盾照樣打穿）' },
+    aoe:     { name: '範圍', icon: '💥', order: 3, atk: 10, hp: 85, aspd: 0.8, shot: 'paint',
+               passive: '攻擊會濺到旁邊的敵人（40% 傷害）', skill: '轟炸全體敵人，每隻造成 450% 傷害' },
+    support: { name: '增益', icon: '📣', order: 4, atk: 8, hp: 110, aspd: 0.75, shot: 'money',
+               passive: '上場時全隊攻擊 +{aura}%', skill: '全隊攻擊 +{buff}%、攻速提升，持續 8 秒' },
+    healer:  { name: '治療', icon: '💚', order: 5, atk: 6, hp: 105, aspd: 0.8, shot: 'heal',
+               passive: '每次攻擊順便幫血最少的同事回血', skill: '全隊回復 40% 血量，倒下的同事以 30% 血量回來' }
+  };
+  // 單體職業的普攻特效依部門換
+  const DEPT_SHOT = { design: 'arrow', cs: 'paper', eng: 'code', sales: 'arrow', admin: 'stamp' };
+  // 治療：普攻回復 = 治療者血量 × hit；大招全隊回復 ult、復活 revive
+  const HEAL = { hit: 0.09, ult: 0.4, revive: 0.3 };
+  // 增益職業（Vivi 以外）：被動光環與大招強度，依稀有度
+  const SUPPORT = { aura: [0.04, 0.05, 0.06, 0.08, 0.1], buff: [0.4, 0.5, 0.6, 0.8, 1] };
+
+  // 同事稀有度（和寶物的 RARITY 分開）。mul = 攻擊血量倍率、cost = 升級基礎價、rate = 招募機率
+  const HRAR = [
+    { name: '普通', key: 'N',   color: '#9aa4b2', rate: 0.5,  mul: 0.62, cost: 10 },
+    { name: '稀有', key: 'R',   color: '#3d9bff', rate: 0.32, mul: 0.74, cost: 12 },
+    { name: '史詩', key: 'SR',  color: '#b26bff', rate: 0.13, mul: 0.87, cost: 15 },
+    { name: '傳說', key: 'SSR', color: '#ffb020', rate: 0.04, mul: 1,    cost: 20 },
+    { name: '神話', key: 'UR',  color: '#ff4d8d', rate: 0.01, mul: 1.2,  cost: 30 }
+  ];
+  // 招募：unlock = 通過幾關後開放（第一次開放送 first 份履歷）；十連至少一位 SR；保底 SSR 30 抽、UR 90 抽
+  // 重複抽到升星（★1～★5，每星攻擊血量 +starMul）；★5 再抽到換薪水（打怪 maxGold 隻份）＋履歷 maxResume[稀有度]
+  // newW：還沒有的同事被抽到的權重（> 1 比較容易抽到新面孔）
+  // drop：打怪 kill、精英 elite 機率掉 1 份；頭目 boss 份；金寶箱 gold、木寶箱 wood 機率掉 1 份；
+  //       第 firstFrom 關起第一次過關給 first 份（後期一關打比較久，履歷才不會都集中在前 10 分鐘），頭目關第一次過給 firstBoss 份
+  //       加班模式（第 51 關起）打怪、精英掉率 × ot：卡關練功時也一直有新同事可以抽，收集 100 位是通關後的長期目標
+  const RECRUIT = {
+    unlock: 4, first: 10, ten: 10, pitySSR: 30, pityUR: 90, maxStar: 5, starMul: 0.2, newW: 1.5,
+    maxGold: 20, maxResume: [0, 0, 1, 2, 4],
+    drop: { kill: 0.004, elite: 0.08, boss: 0, gold: 0.3, wood: 0.03, first: 1, firstFrom: 30, firstBoss: 2, ot: 4 }
+  };
+  // 隊伍格數：通過 at 關後 n 格；站位 x（由前到後）
+  const TEAM = {
+    slots: [{ at: 0, n: 3 }, { at: 4, n: 4 }, { at: 10, n: 5 }],
+    x: { 3: [224, 170, 116], 4: [224, 176, 126, 72], 5: [228, 184, 140, 96, 52] },
+    swapGain: 1.2     // 自動編隊：新隊伍估分要比現在高 20% 以上才換
+  };
+  // 解鎖階梯：通過 at 關後解鎖（同一個 at 的會合併顯示）；畫面上方「下一個目標」用
+  const UNLOCKS = [
+    { at: 2, key: 'jie', text: '阿傑加入' },
+    { at: 4, key: 'recruit', text: '招募新同事（人資送 10 份履歷）' },
+    { at: 4, key: 'slot4', text: '第 4 個隊伍格' },
+    { at: 5, key: 'autobuy', text: '自動升級（順便自動招募、自動編隊）' },
+    { at: 8, key: 'dept', text: '同部門 3 人上場：全隊攻擊加成' },
+    { at: 10, key: 'vivi', text: 'Vivi 老闆加入' },
+    { at: 10, key: 'slot5', text: '第 5 個隊伍格' },
+    { at: 10, key: 'autoult', text: '自動大招' },
+    { at: 10, key: 'office1', text: '人體工學椅、年終獎金池' },
+    { at: 20, key: 'office2', text: '機械鍵盤' },
+    { at: 30, key: 'office3', text: '能量飲料櫃' },
+    { at: 50, key: 'ot', text: '加班模式' }
+  ];
+  // 收集目標（任務 type 'heroes' 也用這組數字）
+  const COLLECT = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+  // 新同事沒有專屬台詞時用的通用碎碎念（自己的口頭禪會混進去）
+  const TALK_GENERIC = {
+    start: ['好，開工了', '今天也要平安下班', '先喝口水再說', '我準備好了（大概）', '新的一天，新的鳥事'],
+    ult: ['看我的！', '這招我練很久了', '交給我就對了', '認真起來了喔'],
+    down: ['我先去茶水間一下……', '讓我躺一下就好……', '我的電量只剩 1%……', '幫我跟主管說我在忙……'],
+    boss: ['這個看起來不好惹', '大家穩住，照流程來', '我只想準時下班啊', '這種場面我見多了（騙你的）'],
+    bonus: ['外送！今天有救了', '誰點的？謝啦！', '吃飽才有力氣上班'],
+    idle: ['今天的會怎麼這麼多', '下班倒數中……', '我的電腦又在更新了', '這個月的薪水呢？', '誰把冷氣開這麼冷']
+  };
+
   const ENEMIES = {
-    e_alarm:    { name: '早會鬧鐘', hp: 1.0, atk: 1.0, spd: 34 },
-    e_mail:     { name: '未讀郵件', hp: 0.8, atk: 1.1, spd: 44 },
-    e_sticky:   { name: '便利貼精', hp: 1.2, atk: 0.8, spd: 30 },
-    e_revise:   { name: '改稿單', hp: 1.3, atk: 1.0, spd: 30 },
-    e_phone:    { name: '奧客電話', hp: 0.9, atk: 1.4, spd: 40 },
-    e_printer:  { name: '卡紙印表機', hp: 1.7, atk: 0.8, spd: 24 },
-    e_bug:      { name: '神秘 Bug', hp: 0.9, atk: 1.3, spd: 46 },
-    e_meeting:  { name: '白板會議', hp: 1.6, atk: 0.9, spd: 26 },
-    e_kpi:      { name: 'KPI 圖表', hp: 1.2, atk: 1.3, spd: 32 },
-    e_deadline: { name: 'Deadline 沙漏', hp: 1.0, atk: 1.5, spd: 50 },
-    e_chat:     { name: '群組 99+', hp: 1.4, atk: 1.1, spd: 34 },
-    e_overtime: { name: '加班幽靈', hp: 1.3, atk: 1.4, spd: 36 },
+    e_alarm:    { name: '早會鬧鐘', weak: 'admin', hp: 1.0, atk: 1.0, spd: 34 },
+    e_mail:     { name: '未讀郵件', weak: 'cs', hp: 0.8, atk: 1.1, spd: 44 },
+    e_sticky:   { name: '便利貼精', weak: 'admin', hp: 1.2, atk: 0.8, spd: 30 },
+    e_revise:   { name: '改稿單', weak: 'design', hp: 1.3, atk: 1.0, spd: 30 },
+    e_phone:    { name: '奧客電話', weak: 'cs', hp: 0.9, atk: 1.4, spd: 40 },
+    e_printer:  { name: '卡紙印表機', weak: 'eng', hp: 1.7, atk: 0.8, spd: 24 },
+    e_bug:      { name: '神秘 Bug', weak: 'eng', hp: 0.9, atk: 1.3, spd: 46 },
+    e_meeting:  { name: '白板會議', weak: 'admin', hp: 1.6, atk: 0.9, spd: 26 },
+    e_kpi:      { name: 'KPI 圖表', weak: 'sales', hp: 1.2, atk: 1.3, spd: 32 },
+    e_deadline: { name: 'Deadline 沙漏', weak: 'eng', hp: 1.0, atk: 1.5, spd: 50 },
+    e_chat:     { name: '群組 99+', weak: 'sales', hp: 1.4, atk: 1.1, spd: 34 },
+    e_overtime: { name: '加班幽靈', weak: 'admin', hp: 1.3, atk: 1.4, spd: 36 },
+    // weak：弱點部門（該部門同事打它 ×1.5）。各章分布：週一行政／客服、週二客服、週三什麼部門都有、週四業務、週五工程／行政
     // 頭目。skills：輪流施放，先預警 delay 秒再生效
     //   aoe：全隊受到 power 倍攻擊，且至少扣最大血量的 pct（小米的護盾擋得住）
     //   shield：護盾 = 最大血量 × power，持續 dur 秒；打破前一般攻擊只削 30%，點擊 ×3、大招全額
     //   summon：在頭目前面叫出 n 隻小怪擋刀（小葵範圍攻擊最好清）
-    b_vivi:     { name: 'Vivi 老闆・突擊檢查', hp: 18, atk: 2.2, spd: 22, boss: true, img: 'vivi',
+    b_vivi:     { name: 'Vivi 老闆・突擊檢查', weak: 'sales', hp: 18, atk: 2.2, spd: 22, boss: true, img: 'vivi',
                   appear: ['大家都在認真上班嗎～？', '我只是路過，你們繼續～'],
                   skills: [{ id: 'inspect', name: '突擊檢查', kind: 'aoe', delay: 2, power: 1.2, pct: 0.2, line: '我來看看大家的螢幕～' }],
                   title: '笑容滿面的突擊檢查', phase2: '看來要拿出真本事了～全員績效面談！',
                   skills2: [{ id: 'review', name: '全員績效面談', kind: 'aoe', delay: 2.2, power: 1.5, pct: 0.24, line: '來，一個一個進會議室～' },
                             { id: 'inspect', name: '突擊檢查', kind: 'aoe', delay: 2, power: 1.2, pct: 0.2, line: '我又來看螢幕囉～' }] },
-    b_client:   { name: '甲方大魔王', hp: 15, atk: 2.4, spd: 20, boss: true,
+    b_client:   { name: '甲方大魔王', weak: 'design', hp: 15, atk: 2.4, spd: 20, boss: true,
                   appear: ['我要五彩斑斕的黑！', 'Logo 再大一點，但不要太大'],
                   skills: [{ id: 'revise', name: '再改一版', kind: 'shield', delay: 2, power: 0.2, dur: 7, line: '我覺得還可以再改一版' }],
                   title: '永遠不滿意的付錢的人', phase2: '我請我們主管也來看一下！',
                   skills2: [{ id: 'boss2', name: '主管也來看', kind: 'summon', delay: 2, n: 2, minion: 'e_revise', power: 0.6, line: '我們主管說要更有質感' },
                             { id: 'revise2', name: '預算砍半但要更好', kind: 'shield', delay: 2, power: 0.28, dur: 8, line: '預算砍半，但效果要加倍' }] },
-    b_meeting:  { name: '無限會議', hp: 11, atk: 2.4, spd: 18, boss: true,
+    b_meeting:  { name: '無限會議', weak: 'admin', hp: 11, atk: 2.4, spd: 18, boss: true,
                   appear: ['我們先來對齊一下', '這個會很快，五分鐘就好'],
                   skills: [{ id: 'more', name: '再開一個會', kind: 'summon', delay: 2, n: 3, minion: 'e_meeting', power: 0.5, line: '這個我們另外開個會討論' }],
                   title: '沒有結束時間的會議', phase2: '時間到了，但我們延長一下！',
                   skills2: [{ id: 'storm', name: '腦力激盪', kind: 'aoe', delay: 2.2, power: 1.5, pct: 0.22, line: '大家都要發言喔，一人一個想法' },
                             { id: 'more2', name: '會議的會議', kind: 'summon', delay: 2, n: 4, minion: 'e_meeting', power: 0.5, line: '我們開個會討論剛剛的會' }] },
-    b_report:   { name: '週報魔像', hp: 12, atk: 2.6, spd: 16, boss: true,
+    b_report:   { name: '週報魔像', weak: 'eng', hp: 12, atk: 2.6, spd: 16, boss: true,
                   appear: ['本週工作內容，請填寫至少五百字', '週報是你成長的證明'],
                   skills: [{ id: 'format', name: '格式不對', kind: 'aoe', delay: 2.5, power: 1.8, pct: 0.26, line: '格式不對，全部重寫' }],
                   title: '五百字起跳的週報', phase2: '主管已讀……並且退件！',
                   skills2: [{ id: 'attach', name: '補附件', kind: 'shield', delay: 2, power: 0.22, dur: 7, line: '請附上佐證資料' },
                             { id: 'reject', name: '主管退件', kind: 'aoe', delay: 2.5, power: 2.1, pct: 0.3, line: '退件，理由請自行體會' }] },
-    b_final:    { name: '下班前的新需求', hp: 16, atk: 2.8, spd: 18, boss: true,
+    b_final:    { name: '下班前的新需求', weak: 'cs', hp: 16, atk: 2.8, spd: 18, boss: true,
                   appear: ['這個很簡單，下班前可以給我嗎？', '17:59，叮咚——'],
                   skills: [
                     { id: 'easy', name: '這個很簡單', kind: 'shield', delay: 2, power: 0.15, dur: 7, line: '就改一個小地方而已' },
@@ -140,6 +230,7 @@
   // 數值曲線（s = 0 起算的總關卡編號）
   const CURVE = {
     enemyHp: s => 30 * Math.pow(1.355, s) * Math.pow(1.09, Math.max(0, s - 10)) * Math.pow(1.05, Math.max(0, s - 15)),
+    mobHp: s => Math.pow(1.02, Math.max(0, s - 20)),   // v1.3 多了第 5 格與招募：小怪（不含頭目）後期血量再加一點
     enemyAtk: s => 4 * Math.pow(1.16, s),
     gold: s => 3 * Math.pow(1.22, s),
     heroAtk: (base, lv) => base * (1 + 0.32 * (lv - 1)) * Math.pow(1.045, lv - 1) * Math.pow(1.3, Math.floor(lv / 10)),
@@ -147,7 +238,7 @@
     heroCost: (base, lv) => Math.ceil(base * Math.pow(1.17, lv - 1)),
     rankAt: [0, 15, 35, 60],          // 升職等級
     rankMul: 1.5,                      // 每升一職攻擊、血量倍率
-    mentor: 0.65,                       // 前輩帶新人：低等員工補上與最高等級差距的比例
+    mentor: 0.9,                        // 前輩帶新人：低等同事補上與最高等級差距的比例（能力、升職倍率都用補完的等級）
     tapDmg: lv => 4 * (1 + 0.5 * (lv - 1)) * Math.pow(1.06, lv - 1),
     tapCost: lv => Math.ceil(8 * Math.pow(1.17, lv - 1)),
     bossTime: 40
@@ -210,7 +301,7 @@
   ];
   const FX_TEXT = {
     atk: ['全隊攻擊', '%'], hp: ['全隊血量', '%'], gold: ['薪水', '%'], aspd: ['攻速', '%'], charge: ['大招充能', '%'], tap: ['點擊傷害', '%'],
-    boss: ['對頭目傷害', '%'], time: ['頭目限時', '秒'], crit: ['阿傑爆擊率', '%'], drop: ['寶箱掉率', '%'], bonus: ['外送薪水', '%'],
+    boss: ['對頭目傷害', '%'], time: ['頭目限時', '秒'], crit: ['爆擊同事爆擊率', '%'], drop: ['寶箱掉率', '%'], bonus: ['外送薪水', '%'],
     kuiAtk: ['小葵攻擊', '%'], jieAtk: ['阿傑攻擊', '%'], miHp: ['小米血量', '%'], miShield: ['小米護盾', '%'], viviBuff: ['畫大餅效果', '%'], ot: ['加班模式薪水', '%']
   };
   // 寶箱：一般怪 drop、精英怪 elite 機率掉木箱；頭目掉 boss 個金箱。w = 開到各稀有度的權重（普通、稀有、史詩）
@@ -244,7 +335,22 @@
     { id: 'q14', text: '擊敗 1500 個工作怪', type: 'kills', n: 1500, gold: 120000 },
     { id: 'q15', text: '通過週四', type: 'stage', n: 40, gold: 300000 },
     { id: 'qc4', text: '收集 20 種寶物', type: 'treasures', n: 20, gold: 500000 },
-    { id: 'q16', text: '準時下班！通過週五', type: 'stage', n: 50, gold: 1000000 }
+    { id: 'q16', text: '準時下班！通過週五', type: 'stage', n: 50, gold: 1000000 },
+    // v1.3：收集同事（獎勵 resume = 履歷份數）
+    { id: 'qr1', text: '招募 1 次', type: 'pulls', n: 1, gold: 0, resume: 1 },
+    { id: 'qh1', text: '收集 10 位同事', type: 'heroes', n: 10, gold: 0, resume: 1 },
+    { id: 'qh2', text: '收集 20 位同事', type: 'heroes', n: 20, gold: 0, resume: 2 },
+    { id: 'qh3', text: '收集 30 位同事', type: 'heroes', n: 30, gold: 0, resume: 2 },
+    { id: 'qh4', text: '收集 40 位同事', type: 'heroes', n: 40, gold: 0, resume: 3 },
+    { id: 'qh5', text: '收集 50 位同事', type: 'heroes', n: 50, gold: 0, resume: 5 },
+    { id: 'qh6', text: '收集 60 位同事', type: 'heroes', n: 60, gold: 0, resume: 5 },
+    { id: 'qh7', text: '收集 70 位同事', type: 'heroes', n: 70, gold: 0, resume: 5 },
+    { id: 'qh8', text: '收集 80 位同事', type: 'heroes', n: 80, gold: 0, resume: 5 },
+    { id: 'qh9', text: '收集 90 位同事', type: 'heroes', n: 90, gold: 0, resume: 5 },
+    { id: 'qh10', text: '全公司 100 位同事到齊！', type: 'heroes', n: 100, gold: 0, resume: 10 },
+    { id: 'qs1', text: '任一同事升到 ★3', type: 'star', n: 3, gold: 0, resume: 1 },
+    { id: 'qs2', text: '任一同事升到 ★5', type: 'star', n: 5, gold: 0, resume: 5 },
+    { id: 'qd1', text: '同部門 3 人一起上場', type: 'dept', n: 3, gold: 0, resume: 1 }
   ];
 
   // 外送驚喜：戰鬥中每 every 秒出現一個，飄 life 秒；gold = 該關打一隻怪的薪水 × gold
@@ -268,7 +374,7 @@
   const AUTOBUY_AT = 5;
   // 同事打氣：打輸一次 +fail 層、第一次過某關花超過 slow 秒（只算戰鬥時間）+1 層；每層攻擊血量 +per、薪水 +gold（最多 max 層）
   // 之後每順利過 calm 關退 1 層。一般玩家幾乎不會觸發，是給不太會玩的人的保底
-  const CHEER = { per: 0.3, gold: 0.15, max: 40, fail: 3, slow: 50, calm: 3 };
+  const CHEER = { per: 0.3, gold: 0.15, max: 40, fail: 5, slow: 50, calm: 3 };
 
   // 劇情（章節開頭、頭目登場、頭目擊敗）
   const STORY = {
@@ -296,5 +402,41 @@
     win_b_final: [['kui', '我們……準時下班了！！'], ['jie', '十年來第一次。'], ['mi', '電話我拔掉了。'], ['vivi', '好啦好啦，下週一見～'], ['sys', '取得神器「準時下班徽章」！'], ['sys', '恭喜通關！解鎖「加班模式」：無限關卡，怪物越來越強，寶箱照樣掉，想玩多久就多久。']]
   };
 
-  G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, RARITY, TREASURES, SETS, FX_TEXT, CHEST, ELITE, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK };
+  // ---------- 名冊合併：原本四人 + G.ROSTER（js/roster.js）→ ALLHEROES ----------
+  // 同事能力由稀有度、職業、星數決定；roster.js 晚載入也沒關係，engine 會呼叫 syncRoster() 重新合併
+  function makeHero(r) {
+    const role = ROLES[r.role] ? r.role : 'dps', R = ROLES[role], rar = Math.max(0, Math.min(4, r.rar | 0)), M = HRAR[rar].mul;
+    const dept = DEPTS[r.dept] ? r.dept : 'admin';
+    const fill = t => t.replace('{aura}', Math.round(SUPPORT.aura[rar] * 100)).replace('{buff}', Math.round(SUPPORT.buff[rar] * 100));
+    const sk = typeof r.skill === 'string' ? r.skill : (r.skill && r.skill.name) || R.name + '大招';
+    const line = r.line || '……';
+    const T = TALK_GENERIC;
+    const job = r.job || '同事';
+    return Object.assign({}, r, {
+      id: r.id, name: r.name, job, dept, rar, role, legacy: false, line,
+      roleName: R.name, color: DEPTS[dept].color, atk: R.atk * M, hp: R.hp * M, aspd: R.aspd, cost: HRAR[rar].cost,
+      skill: { name: sk, desc: fill(R.skill) }, passive: fill(R.passive),
+      shot: role === 'dps' ? DEPT_SHOT[dept] : R.shot, lines: [line],
+      ranks: [job, '資深' + job, job + '主管', '傳說中的' + job],
+      talk: {
+        start: [line].concat(T.start), ult: [sk + '！', line].concat(T.ult), down: T.down, boss: T.boss, bonus: T.bonus,
+        idle: [line, line].concat(T.idle)
+      }
+    });
+  }
+  function syncRoster() {
+    const R = G.ROSTER || [];
+    if (D.ALLHEROES && D._roster === R && D._rosterN === R.length) return false;
+    const list = HEROES.slice(), by = {};
+    for (const h of HEROES) by[h.id] = h;
+    for (const r of R) if (r && r.id && !by[r.id]) { const h = makeHero(r); list.push(h); by[h.id] = h; }
+    D.ALLHEROES = list; D.HERO_BY = by; D._roster = R; D._rosterN = R.length;
+    return true;
+  }
+  // 原本四人補上職業的通用說明以外的欄位
+  for (const h of HEROES) { h.cost = h.cost || HRAR[h.rar].cost; h.roleName = ROLES[h.role].name; }
+
+  const D = G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, RARITY, TREASURES, SETS, FX_TEXT, CHEST, ELITE, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK,
+    DEPTS, WEAK, DEPT_BONUS, ROLES, DEPT_SHOT, HEAL, SUPPORT, HRAR, RECRUIT, TEAM, UNLOCKS, COLLECT, TALK_GENERIC, makeHero, syncRoster };
+  syncRoster();
 })(typeof window !== 'undefined' ? window : globalThis);
