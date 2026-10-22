@@ -31,8 +31,8 @@ function write(name, text, ids) {
   names.push(name);
 }
 
-const singles = R.filter(h => h.rar >= 3);
-const rest = R.filter(h => h.rar < 3);
+const singles = R.filter(h => h.rar >= 3 && !h.base);
+const rest = R.filter(h => h.rar < 3 && !h.base);
 const POS = ['TOP-LEFT', 'TOP-RIGHT', 'BOTTOM-LEFT', 'BOTTOM-RIGHT'];
 for (let i = 0, k = 1; i < rest.length; i += 4, k++) {
   const g = rest.slice(i, i + 4);
@@ -45,6 +45,16 @@ for (let i = 0, k = 1; i < rest.length; i += 4, k++) {
 for (const h of singles) {
   const text = `A tall portrait image of exactly one character, centered, full body from top of head to shoes with generous empty margin around it. Character: ${desc(h)} ` + STYLE + ' ' + POSE + ' ' + BG;
   write('hs_' + h.id, text, [h.id]);
+}
+// v1.3.1 本尊的限定版本（h.base）：單張，參考圖用本尊與升職造型，保留臉與辨識特徵、只換服裝道具
+const BASEREF = { kui: 'work/gen/base_kui.png', mi: 'work/gen/base2_mi.png', jie: 'work/gen/base2_jie.png', vivi: 'work/gen/base2_vivi.png' };
+for (const h of R.filter(h => h.base)) {
+  const name = 'hv_' + h.id;
+  const text = `A tall portrait image of exactly one character, centered, full body from top of head to shoes with generous empty margin around it. This is the SAME character as in the reference images, in a special themed costume: keep exactly the same face, eye shape and color, hairstyle, hair color, glasses and beard (if any), same chibi proportions and the same art style as the references; only the outfit, accessories and props change. Character: ${h.look}. ${FLAIR[h.rar]} Cute and fun, not scary; modest clothing. ` + STYLE.replace(/ Match exactly.*$/, ' Match exactly the chibi proportions, line weight and shading of the reference images.') + ' ' + POSE + ' ' + BG;
+  fs.writeFileSync(path.join(dir, name + '.txt'), text);
+  fs.writeFileSync(path.join(dir, name + '.refs'), [BASEREF[h.base], `work/gen/pro_${h.base}.png`].join('\n') + '\n');
+  groups[name] = [h.id];
+  names.push(name);
 }
 fs.writeFileSync(path.join(dir, 'hero_groups.json'), JSON.stringify(groups, null, 1));
 console.log(names.join(' '));

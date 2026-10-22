@@ -4,7 +4,7 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
-  G.VERSION = 'v1.3.0';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
+  G.VERSION = 'v1.3.1';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
   const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });   // 原本四人（劇情、升職造型用）
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
 
@@ -16,10 +16,15 @@
   const DEPT = {}; DEPT_KEYS.forEach(k => { DEPT[k] = Object.assign({}, DEPT0[k], D.DEPTS && D.DEPTS[k]); });
   const LEGACY_DEPT = { mi: 'cs', jie: 'design', kui: 'design', vivi: 'admin' };
   const ROLE0 = { tank: '坦克', dps: '單體輸出', aoe: '範圍輸出', crit: '爆擊', support: '輔助', healer: '治療' };
-  const ALL = (D.ALLHEROES || D.HEROES.concat(G.ROSTER || [])).slice();
-  const AH = {}; ALL.forEach(h => { AH[h.id] = h; });
+  let ALL = [], AH = {};
+  function refreshAll() { ALL = (D.ALLHEROES || D.HEROES.concat(G.ROSTER || [])).slice(); AH = {}; ALL.forEach(h => { AH[h.id] = h; }); }
+  refreshAll();
+  // 同一人的不同版本（主題版 def.base＝本尊 id）不能同時上場
+  const baseOf = id => game.baseOf ? game.baseOf(id) : (AH[id] && AH[id].base) || id;
+  const sameBase = (a, b) => game.sameBase ? game.sameBase(a, b) : baseOf(a) === baseOf(b);
+  const themeTag = h => h.theme ? `<span class="rtagI thm">✦ ${h.theme}</span>` : '';
   const hdef = id => AH[id] || (game && game.heroDef && game.heroDef(id)) || HERO[id] || { id, name: id };
-  const rarOf = h => h.rar != null ? h.rar : HERO[h.id] ? 3 : 0;
+  const rarOf = h => h.rar != null ? h.rar : HERO[h.id] ? 1 : 0;
   const deptOf = h => DEPT[h.dept] ? h.dept : LEGACY_DEPT[h.id] || 'admin';
   const roleName = h => (D.ROLES && D.ROLES[h.role] && D.ROLES[h.role].name) || ROLE0[h.role] || h.role || '';
   const skillOf = h => typeof h.skill === 'string' ? { name: h.skill, desc: '' } : h.skill || { name: '', desc: '' };
@@ -548,7 +553,7 @@
       .sort((a, b) => rarOf(b) - rarOf(a) || DEPT_KEYS.indexOf(deptOf(a)) - DEPT_KEYS.indexOf(deptOf(b)));
     g.innerHTML = L.length ? L.map(h => {
       const id = h.id, o = owned(id), r = rarOf(h), st = starOf(id);
-      return `<button class="hcell r${r} ${o ? '' : 'no'} ${inTeam.has(id) ? 'on' : ''}" data-h="${id}" style="--rc:${HR[r].color};--dc:${DEPT[deptOf(h)].color}"><span class="fw">${faceHTML(id)}<em class="rk">${HR[r].key}</em>${inTeam.has(id) ? '<u>上場</u>' : o && weakSet.has(deptOf(h)) ? '<u class="w">剋</u>' : ''}</span><b>${h.name}</b><small>${o ? '★'.repeat(st) : '？？？'}</small></button>`;
+      return `<button class="hcell r${r} ${o ? '' : 'no'} ${inTeam.has(id) ? 'on' : ''}" data-h="${id}" style="--rc:${HR[r].color};--dc:${DEPT[deptOf(h)].color}"><span class="fw">${faceHTML(id)}<em class="rk">${HR[r].key}</em>${h.theme ? '<em class="th">✦</em>' : ''}${inTeam.has(id) ? '<u>上場</u>' : o && weakSet.has(deptOf(h)) ? '<u class="w">剋</u>' : ''}</span><b>${h.name}</b><small>${o ? '★'.repeat(st) : '？？？'}</small></button>`;
     }).join('') : '<p class="empty">這個條件還沒有同事</p>';
     g.querySelectorAll('.hcell').forEach(b => b.onclick = () => heroInfo(b.dataset.h));
     fixBroken(g);
@@ -598,7 +603,8 @@
     modal(`<h2>${cur ? '換掉「' + hdef(cur).name + '」' : '選一位上場'}</h2>${weakNow.length ? `<p class="small">這章的怪怕：${weakText()}（標「剋」的打它 +50%）</p>` : ''}
       <div class="pkgrid">${L.map(h => {
         const id = h.id, r = rarOf(h), j = ids.indexOf(id);
-        return `<button class="pk r${r} ${j >= 0 ? 'on' : ''}" data-h="${id}" style="--rc:${HR[r].color}"><span class="fw">${faceHTML(id)}${weakSet.has(deptOf(h)) ? '<u class="w">剋</u>' : ''}${j >= 0 ? '<u>上場</u>' : ''}</span><b>${h.name}</b><small>${HR[r].key}・Lv ${game.s.heroes[id] || 0}</small></button>`;
+        const alt = j < 0 && ids.find(x => x !== cur && sameBase(x, id));
+        return `<button class="pk r${r} ${j >= 0 ? 'on' : ''}" data-h="${id}" style="--rc:${HR[r].color}"><span class="fw">${faceHTML(id)}${weakSet.has(deptOf(h)) ? '<u class="w">剋</u>' : ''}${j >= 0 ? '<u>上場</u>' : alt ? '<u class="alt">換版本</u>' : ''}</span><b>${h.name}</b><small>${HR[r].key}・Lv ${game.s.heroes[id] || 0}</small></button>`;
       }).join('')}</div>`, btns);
     const box = $('#modal .box');
     fixBroken(box);
@@ -608,12 +614,16 @@
       if (id === cur) return;
       if (i < n.length) { if (j >= 0) n[j] = cur; n[i] = id; }
       else { if (j >= 0) n.splice(j, 1); n.push(id); }
+      const k = n.findIndex(x => x !== id && sameBase(x, id));   // 本尊／其他版本已在隊上：讓它下場
+      if (k >= 0) { toast(`同一個人只能上場一位，「${hdef(n[k]).name}」先下場`); n.splice(k, 1); }
       applyTeam(n);
     });
   }
   function teamAdd(id) {
     const ids = teamIds();
     if (ids.includes(id)) return;
+    const alt = ids.find(x => sameBase(x, id));
+    if (alt) { toast(`「${hdef(alt).name}」換成「${hdef(id).name}」`); applyTeam(ids.map(x => x === alt ? id : x)); return; }
     if (ids.length < teamSize()) { applyTeam(ids.concat(id)); return; }
     modal(`<h2>隊伍滿了，換下誰？</h2><p class="small">讓「${hdef(id).name}」上場</p><div class="pkgrid">${ids.map(x => {
       const h = hdef(x), r = rarOf(h);
@@ -639,7 +649,7 @@
     const roleDesc = (D.ROLES && D.ROLES[h.role] && D.ROLES[h.role].desc) || '';
     modal(`<div class="hinfo r${r} ${o ? '' : 'no'}" style="--rc:${R0.color};--dc:${dp.color}"><div class="hrays"></div>${bodyHTML(id)}${weakSet.has(dk) && o ? '<u class="w">剋</u>' : ''}</div>
       <h2>${h.name}</h2><p class="tstar">${o ? stars(st, 5) : ''}</p>
-      <p class="tags"><span class="rtagI" style="background:${R0.color}">${R0.key} ${R0.name}</span><span class="rtagI" style="background:${dp.color}">${dp.name}</span><span class="jtag">${h.job || ''}${h.role ? '・' + roleName(h) : ''}</span></p>
+      <p class="tags"><span class="rtagI" style="background:${R0.color}">${R0.key} ${R0.name}</span><span class="rtagI" style="background:${dp.color}">${dp.name}</span><span class="jtag">${h.job || ''}${h.role ? '・' + roleName(h) : ''}</span>${themeTag(h)}</p>
       ${o ? `<div class="hsk"><b>⚡ ${sk.name}</b>${sk.desc ? '<br>' + sk.desc : ''}${h.passive ? '<br>✦ ' + h.passive : ''}${roleDesc ? `<br><small>${roleName(h)}：${roleDesc}</small>` : ''}</div>
         <p class="lore">「${lineOf(h)}」</p><p class="small">${ab}${st < 5 ? '<br>再抽到一次會升星，能力提升' : '<br>已滿星！'}</p>`
         : `<div class="hsk">大招與口頭禪：招募後揭曉</div><p class="small">${h.joinAt && HERO[id] ? `通過 ${E.stageName(h.joinAt - 1).code} 後加入` : '用履歷招募有機會遇到'}</p>`}`,
@@ -911,7 +921,7 @@
   async function cutIn(r) {
     const id = r.id, h = r.def || hdef(id), rr = rarR(r), R0 = HR[rr];
     RC.cut.className = 'rcCut r' + rr;
-    RC.cut.innerHTML = `<div class="cutRays"></div><div class="cutBand"></div>${bodyHTML(id, 'cutImg')}<div class="cutTx"><span class="cutTag" style="background:${R0.color}">${R0.key} ${R0.name}</span>${r.isNew ? '<span class="cutNew">NEW</span>' : ''}<b class="cutName">${h.name}</b><small>${DEPT[deptOf(h)].name}・${h.job || ''}</small></div><p class="cutLine">「${lineOf(h)}」</p><span class="cutNext">點一下繼續 ▶</span>`;
+    RC.cut.innerHTML = `<div class="cutRays"></div><div class="cutBand"></div>${bodyHTML(id, 'cutImg')}<div class="cutTx"><span class="cutTag" style="background:${R0.color}">${R0.key} ${R0.name}</span>${r.isNew ? '<span class="cutNew">NEW</span>' : ''}${h.theme ? `<span class="cutThm">✦ ${h.theme}</span>` : ''}<b class="cutName">${h.name}</b><small>${DEPT[deptOf(h)].name}・${h.job || ''}</small></div><p class="cutLine">「${lineOf(h)}」</p><span class="cutNext">點一下繼續 ▶</span>`;
     RC.cut.hidden = false; fixBroken(RC.cut);
     G.Audio.play(rr >= 4 ? 'urIn' : 'ssrIn');
     rcFlash(rr);
@@ -1126,6 +1136,7 @@
   async function boot() {
     const saved = loadSave();
     game = G.__game = new E.Game(saved);
+    refreshAll();
     const bootEv = game.events.filter(e => e.gift || e.why === 'gift');   // 舊存檔補發履歷：開始上班後再提示
     game.events.length = 0;
     goldShown = game.s.gold;

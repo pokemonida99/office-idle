@@ -586,10 +586,11 @@
       this.flash = rar >= 3 ? 0.32 : 0.25; this.flashC = rar >= 4 ? '255,240,200' : '255,255,255';
       const al = g.alive ? g.alive() : g.enemies.filter(e => !e.dead);
       const mates = g.heroes.filter(q => q.on && !q.dead);
-      if (h.id === 'kui') al.forEach((en, i) => this.later.push({ t: 0.12 * i + 0.05, fn: () => { this.burst(en.x, en.y - 30, PAINT, 22, 170); this.addShake(0.12); } }));
-      else if (h.id === 'mi') this.addFx({ k: 'bigring', x: h.x, y: GROUND - 50, d: 0.8 });
-      else if (h.id === 'jie') { this.addFx({ k: 'bigslash', d: 0.45 }); this.addShake(0.5); }
-      else if (h.id === 'vivi') for (let i = 0; i < 40; i++) this.parts.push({ k: 'bill', x: Math.random() * W, y: -20 - Math.random() * 120, vx: rand(-15, 15), vy: rand(60, 120), rot: Math.random() * 6, t: 0, d: 2.6 });
+      const sig = def.base || h.id;   // 主題版本（def.base＝本尊）沿用本尊的專屬大招特效
+      if (sig === 'kui') al.forEach((en, i) => this.later.push({ t: 0.12 * i + 0.05, fn: () => { this.burst(en.x, en.y - 30, PAINT, 22, 170); this.addShake(0.12); } }));
+      else if (sig === 'mi') this.addFx({ k: 'bigring', x: h.x, y: GROUND - 50, d: 0.8 });
+      else if (sig === 'jie') { this.addFx({ k: 'bigslash', d: 0.45 }); this.addShake(0.5); }
+      else if (sig === 'vivi') for (let i = 0; i < 40; i++) this.parts.push({ k: 'bill', x: Math.random() * W, y: -20 - Math.random() * 120, vx: rand(-15, 15), vy: rand(60, 120), rot: Math.random() * 6, t: 0, d: 2.6 });
       else if (role === 'tank') {
         this.addFx({ k: 'bigring', x: h.x, y: L.gy - 50, d: 0.8, c: '#9fd3ff' });
         mates.forEach((q, i) => this.later.push({ t: 0.05 + i * 0.05, fn: () => { const Q = this.layout(q); this.addFx({ k: 'ringC', x: q.x, y: Q.gy - Q.hh * 0.48, d: 0.45, c: '#8fd8ff', r: 42 }); } }));
@@ -874,6 +875,12 @@
           this.blit(this.glyph('請稍候…', 9, '#fff', '#335', 3, 1), e.x, yy);
           x.fillStyle = '#ffe066';
           for (let i = 0; i < 3; i++) { const an = this.rt * 5 + i * 2.1; x.beginPath(); x.arc(e.x + Math.cos(an) * 14, yy + 9 + Math.sin(an) * 3.5, 2, 0, 7); x.fill(); }
+        }
+        if (e.scare > 0) {   // 萬聖節大招：受到驚嚇（受傷 ×1.25），紫光＋飄動的小鬼
+          const bob = Math.sin(this.rt * 4 + e.x) * 3, fade = Math.min(1, e.scare * 2);
+          x.globalAlpha = 0.35 * fade; x.drawImage(glow('rgba(170,90,255,0.9)'), e.x - H0 * 0.45, e.y - H0 * 0.95, H0 * 0.9, H0 * 0.9);
+          x.globalAlpha = fade; this.blit(this.glyph('👻', 10, '#fff', null, 0, 1), e.x + H0 * 0.32, e.y - H0 * 0.82 + bob);
+          x.globalAlpha = 1;
         }
         if (e.elite) this.blit(this.glyph('★精英', 8, '#ffe066', '#5a3000', 3, 1), e.x, e.y - H0 - 3);
         if (!e.boss) {

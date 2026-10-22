@@ -2,7 +2,7 @@
 (function (G) {
   const HEROES = [
     {
-      id: 'mi', name: '小米', job: '客服', dept: 'cs', rar: 3, role: 'tank', legacy: true, color: '#6d8fd6', line: '您好～這邊幫您處理喔',
+      id: 'mi', name: '小米', job: '客服', dept: 'cs', rar: 1, role: 'tank', legacy: true, color: '#6d8fd6', line: '您好～這邊幫您處理喔',
       atk: 6, hp: 160, aspd: 0.9, x: 224, cost: 10,
       ranks: ['客服專員', '資深客服', '客服組長', '客服之神'],
       skill: { name: '您的來電對我們很重要', desc: '全隊獲得護盾（小米血量 40%），敵人全部「請稍候」暈 2.5 秒' },
@@ -18,7 +18,7 @@
       }
     },
     {
-      id: 'jie', name: '阿傑', job: '老鳥設計師', dept: 'design', rar: 3, role: 'crit', legacy: true, color: '#c98a4b', line: '第一版就是最終版',
+      id: 'jie', name: '阿傑', job: '老鳥設計師', dept: 'design', rar: 1, role: 'crit', legacy: true, color: '#c98a4b', line: '第一版就是最終版',
       atk: 15, hp: 95, aspd: 0.7, x: 176, cost: 40, joinAt: 2,
       ranks: ['資深設計師', '設計主管', '創意總監', '傳說中的阿傑'],
       skill: { name: '一稿過', desc: '對血量最高的敵人造成 1500% 傷害，必定爆擊' },
@@ -34,7 +34,7 @@
       }
     },
     {
-      id: 'kui', name: '小葵', job: '新銳設計師', dept: 'design', rar: 3, role: 'aoe', legacy: true, color: '#e0954a', line: '這版我很有信心！',
+      id: 'kui', name: '小葵', job: '新銳設計師', dept: 'design', rar: 1, role: 'aoe', legacy: true, color: '#e0954a', line: '這版我很有信心！',
       atk: 10, hp: 85, aspd: 0.8, x: 126, cost: 15,
       ranks: ['新銳設計師', '視覺設計師', '主視覺設計師', '藝術總監'],
       skill: { name: '靈感爆發', desc: '顏料炸彈轟炸全體敵人，每隻造成 450% 傷害' },
@@ -50,7 +50,7 @@
       }
     },
     {
-      id: 'vivi', name: 'Vivi 老闆', job: '老闆', dept: 'sales', rar: 3, role: 'support', legacy: true, color: '#ec5f9e', line: '年底一定會加薪',
+      id: 'vivi', name: 'Vivi 老闆', job: '老闆', dept: 'sales', rar: 1, role: 'support', legacy: true, color: '#ec5f9e', line: '年底一定會加薪',
       atk: 8, hp: 110, aspd: 0.75, x: 72, cost: 120, joinAt: 10,
       ranks: ['老闆', '董事長', '集團總裁', '商業女王'],
       skill: { name: '畫大餅', desc: '全隊攻擊 +80%、攻速 +40%，持續 8 秒，並撒下一陣薪水雨' },
@@ -82,7 +82,7 @@
   // 同部門 n 人以上上場：全隊攻擊 +add（通過 at 關後生效）
   const DEPT_BONUS = { at: 8, add: { 3: 0.1, 4: 0.18, 5: 0.28 } };
 
-  // 職業：基礎能力（傳說 SSR ★1 的數值，原本四人就是這組）、陣型順序（小 = 前排）、普攻特效、技能說明
+  // 職業：基礎能力（稀有 R ★1 的數值，原本四人就是這組）、陣型順序（小 = 前排）、普攻特效、技能說明
   // 普攻特效 shot：wave 聲波、slash 刀光、paint 顏料、money 鈔票、heal 治療光、arrow 便利貼飛鏢、stamp 印章、code 程式碼、paper 文件
   const ROLES = {
     tank:    { name: '坦克', icon: '🛡️', order: 0, atk: 6, hp: 160, aspd: 0.9, shot: 'wave',
@@ -105,14 +105,22 @@
   // 增益職業（Vivi 以外）：被動光環與大招強度，依稀有度
   const SUPPORT = { aura: [0.04, 0.05, 0.06, 0.08, 0.1], buff: [0.4, 0.5, 0.6, 0.8, 1] };
 
-  // 同事稀有度（和寶物的 RARITY 分開）。mul = 攻擊血量倍率、cost = 升級基礎價、rate = 招募機率
+  // 同事稀有度（和寶物的 RARITY 分開）。mul = 攻擊血量倍率（R = 1，原本四人是 R）、cost = 升級基礎價、rate = 招募機率
   const HRAR = [
-    { name: '普通', key: 'N',   color: '#9aa4b2', rate: 0.5,  mul: 0.62, cost: 10 },
-    { name: '稀有', key: 'R',   color: '#3d9bff', rate: 0.32, mul: 0.74, cost: 12 },
-    { name: '史詩', key: 'SR',  color: '#b26bff', rate: 0.13, mul: 0.87, cost: 15 },
-    { name: '傳說', key: 'SSR', color: '#ffb020', rate: 0.04, mul: 1,    cost: 20 },
-    { name: '神話', key: 'UR',  color: '#ff4d8d', rate: 0.01, mul: 1.2,  cost: 30 }
+    { name: '普通', key: 'N',   color: '#9aa4b2', rate: 0.5,  mul: 0.88, cost: 10 },
+    { name: '稀有', key: 'R',   color: '#3d9bff', rate: 0.32, mul: 1,    cost: 12 },
+    { name: '史詩', key: 'SR',  color: '#b26bff', rate: 0.13, mul: 1.13, cost: 15 },
+    { name: '傳說', key: 'SSR', color: '#ffb020', rate: 0.04, mul: 1.27, cost: 20 },
+    { name: '神話', key: 'UR',  color: '#ff4d8d', rate: 0.01, mul: 1.45, cost: 30 }
   ];
+  // 原本四人的主題版本（roster.js 裡有 base 的同事）：繼承本尊的招牌機制，依稀有度變強；SSR、UR 多一個主題小特色
+  //   scare：大招後敵人「嚇一跳」，非頭目暈 stun 秒，dur 秒內受到傷害 × mul
+  //   party：大招順便撒紅包（薪水雨，打一隻怪的 gold 倍），其他上場同事充能 +energy
+  const THEME = {
+    2: { name: '夏日員工旅遊' },
+    3: { name: '萬聖節', desc: '萬聖節特效：敵人嚇一跳，5 秒內受到傷害 +25%（小怪多暈 1 秒）', scare: { dur: 5, mul: 1.25, stun: 1 } },
+    4: { name: '尾牙神裝', desc: '尾牙特效：順便撒紅包（薪水雨），其他同事充能 +25', party: { gold: 4, energy: 25 } }
+  };
   // 招募：unlock = 通過幾關後開放（第一次開放送 first 份履歷）；十連至少一位 SR；保底 SSR 30 抽、UR 90 抽
   // 重複抽到升星（★1～★5，每星攻擊血量 +starMul）；★5 再抽到換薪水（打怪 maxGold 隻份）＋履歷 maxResume[稀有度]
   // newW：還沒有的同事被抽到的權重（> 1 比較容易抽到新面孔）
@@ -145,7 +153,7 @@
     { at: 30, key: 'office3', text: '能量飲料櫃' },
     { at: 50, key: 'ot', text: '加班模式' }
   ];
-  // 收集目標（任務 type 'heroes' 也用這組數字）
+  // 收集目標（最後一個 = 名冊總人數，syncRoster 會重算）
   const COLLECT = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
   // 新同事沒有專屬台詞時用的通用碎碎念（自己的口頭禪會混進去）
@@ -230,7 +238,8 @@
   // 數值曲線（s = 0 起算的總關卡編號）
   const CURVE = {
     enemyHp: s => 30 * Math.pow(1.355, s) * Math.pow(1.09, Math.max(0, s - 10)) * Math.pow(1.05, Math.max(0, s - 15)),
-    mobHp: s => Math.pow(1.02, Math.max(0, s - 20)),   // v1.3 多了第 5 格與招募：小怪（不含頭目）後期血量再加一點
+    mobHp: s => Math.pow(1.05, Math.max(0, s - 20)),   // v1.3 多了第 5 格與招募：小怪（不含頭目）後期血量再加一點
+    bossHp: s => Math.pow(0.99, Math.max(0, s - 20)),   // 頭目後期少一點：抽卡運氣差的人不要卡在 4-10、5-10 太久
     enemyAtk: s => 4 * Math.pow(1.16, s),
     gold: s => 3 * Math.pow(1.22, s),
     heroAtk: (base, lv) => base * (1 + 0.32 * (lv - 1)) * Math.pow(1.045, lv - 1) * Math.pow(1.3, Math.floor(lv / 10)),
@@ -238,6 +247,7 @@
     heroCost: (base, lv) => Math.ceil(base * Math.pow(1.17, lv - 1)),
     rankAt: [0, 15, 35, 60],          // 升職等級
     rankMul: 1.5,                      // 每升一職攻擊、血量倍率
+    mentorCost: 0.15,                   // 前輩帶新人：等級比最高等同事低時，升級價格打折
     mentor: 0.9,                        // 前輩帶新人：低等同事補上與最高等級差距的比例（能力、升職倍率都用補完的等級）
     tapDmg: lv => 4 * (1 + 0.5 * (lv - 1)) * Math.pow(1.06, lv - 1),
     tapCost: lv => Math.ceil(8 * Math.pow(1.17, lv - 1)),
@@ -347,7 +357,7 @@
     { id: 'qh7', text: '收集 70 位同事', type: 'heroes', n: 70, gold: 0, resume: 5 },
     { id: 'qh8', text: '收集 80 位同事', type: 'heroes', n: 80, gold: 0, resume: 5 },
     { id: 'qh9', text: '收集 90 位同事', type: 'heroes', n: 90, gold: 0, resume: 5 },
-    { id: 'qh10', text: '全公司 100 位同事到齊！', type: 'heroes', n: 100, gold: 0, resume: 10 },
+    { id: 'qh10', text: '全公司同事到齊！', type: 'heroes', n: 100, gold: 0, resume: 10 },
     { id: 'qs1', text: '任一同事升到 ★3', type: 'star', n: 3, gold: 0, resume: 1 },
     { id: 'qs2', text: '任一同事升到 ★5', type: 'star', n: 5, gold: 0, resume: 5 },
     { id: 'qd1', text: '同部門 3 人一起上場', type: 'dept', n: 3, gold: 0, resume: 1 }
@@ -370,6 +380,8 @@
   const TALK = { gap: 11, idle: 18 };
   // 大招充滿後 wait 秒沒按，員工會自己放（自動大招開著就馬上放）
   const ULT_WAIT = 4;
+  // 打輸後練功幾關就自動回去挑戰（打輸有同事打氣加成，很快就打得過）
+  const BOSS_RETRY = 1;
   // 自動升級：通過幾關後可以開
   const AUTOBUY_AT = 5;
   // 同事打氣：打輸一次 +fail 層、第一次過某關花超過 slow 秒（只算戰鬥時間）+1 層；每層攻擊血量 +per、薪水 +gold（最多 max 層）
@@ -404,7 +416,23 @@
 
   // ---------- 名冊合併：原本四人 + G.ROSTER（js/roster.js）→ ALLHEROES ----------
   // 同事能力由稀有度、職業、星數決定；roster.js 晚載入也沒關係，engine 會呼叫 syncRoster() 重新合併
+  // 主題版本：能力 = 本尊 × 稀有度倍率，職業、部門、普攻、升職路線、台詞跟本尊
+  function makeVariant(r, b) {
+    const rar = Math.max(2, Math.min(4, r.rar | 0)), M = HRAR[rar].mul / HRAR[b.rar].mul, th = THEME[rar];
+    const sk = typeof r.skill === 'string' ? r.skill : (r.skill && r.skill.name) || b.skill.name;
+    const line = r.line || b.line;
+    return Object.assign({}, r, {
+      id: r.id, name: r.name || b.name, job: r.job || b.job, dept: b.dept, rar, role: b.role, roleName: ROLES[b.role].name,
+      legacy: false, base: b.id, theme: th.name, line, color: b.color,
+      atk: b.atk * M, hp: b.hp * M, aspd: b.aspd, cost: HRAR[rar].cost,
+      skill: { name: sk, desc: b.skill.desc + (th.desc ? '。' + th.desc : '') }, passive: b.passive,
+      shot: b.shot, lines: [line].concat(b.lines), ranks: b.ranks,
+      talk: Object.assign({}, b.talk, { start: [line].concat(b.talk.start), ult: [sk + '！'].concat(b.talk.ult), idle: [line].concat(b.talk.idle) })
+    });
+  }
   function makeHero(r) {
+    const base = r.base && HEROES.find(h => h.id === r.base);
+    if (base) return makeVariant(r, base);
     const role = ROLES[r.role] ? r.role : 'dps', R = ROLES[role], rar = Math.max(0, Math.min(4, r.rar | 0)), M = HRAR[rar].mul;
     const dept = DEPTS[r.dept] ? r.dept : 'admin';
     const fill = t => t.replace('{aura}', Math.round(SUPPORT.aura[rar] * 100)).replace('{buff}', Math.round(SUPPORT.buff[rar] * 100));
@@ -431,12 +459,16 @@
     for (const h of HEROES) by[h.id] = h;
     for (const r of R) if (r && r.id && !by[r.id]) { const h = makeHero(r); list.push(h); by[h.id] = h; }
     D.ALLHEROES = list; D.HERO_BY = by; D._roster = R; D._rosterN = R.length;
+    // 收集目標與「全員到齊」任務跟著名冊人數走
+    const n = list.length;
+    D.COLLECT = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].filter(x => x < n).concat(n);
+    const q = QUESTS.find(x => x.id === 'qh10'); if (q) { q.n = n; q.text = `全公司 ${n} 位同事到齊！`; }
     return true;
   }
   // 原本四人補上職業的通用說明以外的欄位
   for (const h of HEROES) { h.cost = h.cost || HRAR[h.rar].cost; h.roleName = ROLES[h.role].name; }
 
-  const D = G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, RARITY, TREASURES, SETS, FX_TEXT, CHEST, ELITE, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK,
-    DEPTS, WEAK, DEPT_BONUS, ROLES, DEPT_SHOT, HEAL, SUPPORT, HRAR, RECRUIT, TEAM, UNLOCKS, COLLECT, TALK_GENERIC, makeHero, syncRoster };
+  const D = G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, RARITY, TREASURES, SETS, FX_TEXT, CHEST, ELITE, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK, BOSS_RETRY,
+    DEPTS, WEAK, DEPT_BONUS, ROLES, DEPT_SHOT, HEAL, SUPPORT, HRAR, THEME, RECRUIT, TEAM, UNLOCKS, COLLECT, TALK_GENERIC, makeHero, syncRoster };
   syncRoster();
 })(typeof window !== 'undefined' ? window : globalThis);

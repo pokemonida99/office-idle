@@ -524,3 +524,7 @@ img.bd.tiny, img.cutImg.tiny { height: auto !important; width: 150px; max-width:
 .rcCut img.cutImg[src^="data:"] { height: 46%; bottom: 20%; right: 10%; }
 .dbTip { background: #eefaf1; border: 1px solid #b6e6c3; color: #2a7d43; font-size: 12.5px; font-weight: 800; padding: 6px 10px; border-radius: 11px; margin-bottom: 6px; }
 .dbTip.off { background: #f5f0e8; border-color: var(--line); color: var(--sub); font-weight: 700; }
+.rtagI.thm { background: linear-gradient(90deg, #ff8a3d, #ec5f9e); }
+.rcCut .cutThm { display: inline-block; margin-left: 6px; font-size: 12px; font-weight: 900; padding: 3px 9px; border-radius: 8px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.5); }
+.hcell .th { position: absolute; right: 0; top: 0; font-style: normal; font-size: 9px; font-weight: 900; color: #fff; background: linear-gradient(#ff8a3d, #ec5f9e); padding: 0 3px; border-radius: 0 0 0 6px; }
+.pk u.alt { background: var(--purple); }

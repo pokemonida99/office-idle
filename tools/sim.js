@@ -11,6 +11,9 @@ function load() {
   const roster = path.join(__dirname, '../js/roster.js');
   if (fs.existsSync(roster)) vm.runInContext(fs.readFileSync(roster, 'utf8'), ctx);
   if (!ctx.ROSTER || !ctx.ROSTER.length) ctx.ROSTER = fakeRoster();
+  // 原本四人的主題版本（SR／SSR／UR）名冊還沒有的話補假資料
+  if (!ctx.ROSTER.some(r => r.base)) ['kui', 'mi', 'jie', 'vivi'].forEach((b, i) => [2, 3, 4].forEach((rar, j) =>
+    ctx.ROSTER.push({ id: 'h' + (97 + i * 3 + j), name: b + '主題' + rar, base: b, rar, skill: '主題大招', line: '……' })));
   for (const f of ['data.js', 'engine.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', f), 'utf8'), ctx);
   return ctx;
 }

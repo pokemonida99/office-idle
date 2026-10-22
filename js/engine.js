@@ -40,6 +40,7 @@
 
   const chapterOf = s => Math.min(Math.floor(s / 10), 4);
   const BOSS_ROT = ['b_client', 'b_meeting', 'b_report', 'b_final', 'b_vivi'];   // 加班模式頭目輪替
+  const SCARE_MUL = (D.THEME && D.THEME[3] && D.THEME[3].scare) ? D.THEME[3].scare.mul : 1.25;
   const isBoss = s => s % 10 === 9;
   function stageName(s) {
     if (s >= 50) return { day: '加班', title: `加班第 ${s - 49} 關`, code: `OT-${s - 49}` };
@@ -119,7 +120,7 @@
     chargeMul() { return 1 + this.officeBonus('drink') + this.tSum('charge'); }
     viviMul() { return 1 + 0.8 * (1 + this.tSum('viviBuff')); }
     // 增益職業大招的攻擊加成（Vivi 是畫大餅，吃寶物加成）
-    supportBuff(def) { return def.id === 'vivi' ? 0.8 * (1 + this.tSum('viviBuff')) : D.SUPPORT.buff[def.rar]; }
+    supportBuff(def) { return (def.base || def.id) === 'vivi' ? 0.8 * (1 + this.tSum('viviBuff')) * D.HRAR[def.rar].mul : D.SUPPORT.buff[def.rar]; }
     bossTime() { return C.bossTime + this.tSum('time'); }
     buffMul(k) { return this.buffs[k].t > 0 ? this.buffs[k].mul : 1; }
     // 戰鬥中暫時的攻擊倍率（畫大餅、外送）
@@ -127,6 +128,11 @@
 
     // ---------- 同事 ----------
     heroDef(id) { return D.HERO_BY[id] || null; }
+    // 本尊：主題版本（def.base）算同一個人，招牌機制與寶物加成照本尊；同一個人只能一個版本上場
+    baseOf(id) { const d = D.HERO_BY[id]; return (d && d.base) || id; }
+    sameBase(a, b) { return this.baseOf(a) === this.baseOf(b); }
+    // 去掉同一個人的第二個版本（保留先出現的）
+    uniqBase(ids) { const seen = {}, out = []; for (const id of ids) { const b = this.baseOf(id); if (!seen[b]) { seen[b] = 1; out.push(id); } } return out; }
     owned(id) { return this.s.heroes[id] > 0; }
     ownedIds() { return Object.keys(this.s.heroes).filter(id => this.s.heroes[id] > 0 && D.HERO_BY[id]); }
     ownedCount() { return this.ownedIds().length; }
@@ -138,20 +144,21 @@
     // 不含隊伍加成（同部門、增益光環）的攻擊；heroAtk 再乘上目前隊伍的加成
     baseAtk(id) {
       const lv = Math.max(1, this.s.heroes[id] || 0), def = this.heroDef(id);
-      const own = id === 'kui' ? this.tSum('kuiAtk') : id === 'jie' ? this.tSum('jieAtk') : 0;
+      const b = this.baseOf(id), own = b === 'kui' ? this.tSum('kuiAtk') : b === 'jie' ? this.tSum('jieAtk') : 0;
       return C.heroAtk(def.atk, this.effLv(id)) * Math.pow(C.rankMul, this.powRank(id)) * this.atkMul() * (1 + own) * this.starMul(id);
     }
     heroAtk(id) { return this.baseAtk(id) * this.teamMul(); }
     heroHp(id) {
       const lv = Math.max(1, this.s.heroes[id] || 0), def = this.heroDef(id);
-      return C.heroHp(def.hp, this.effLv(id)) * Math.pow(C.rankMul, this.powRank(id)) * this.hpMul() * (1 + (id === 'mi' ? this.tSum('miHp') : 0)) * this.starMul(id);
+      return C.heroHp(def.hp, this.effLv(id)) * Math.pow(C.rankMul, this.powRank(id)) * this.hpMul() * (1 + (this.baseOf(id) === 'mi' ? this.tSum('miHp') : 0)) * this.starMul(id);
     }
     // 職業對輸出的期望倍率（爆擊、濺射）
     roleDps(def) { return def.role === 'crit' ? 1 + (0.25 + this.tSum('crit')) * 1.5 : def.role === 'aoe' ? 1.3 : 1; }
     heroCost(id, n = 1) {
       const def = this.heroDef(id); if (!def) return Infinity;
-      let lv = Math.max(1, this.s.heroes[id] || 0), c = 0;
-      for (let i = 0; i < n; i++) c += C.heroCost(def.cost, lv + i);
+      let lv = Math.max(1, this.s.heroes[id] || 0), c = 0; const top = this.topLv();
+      // 前輩帶新人：比最高等同事低的等級，升級打折（新同事換上場很快就跟得上）
+      for (let i = 0; i < n; i++) c += Math.ceil(C.heroCost(def.cost, lv + i) * (lv + i < top ? C.mentorCost : 1));
       return c;
     }
     maxAffordable(costFn) { let n = 0, c = 0; while (n < 200) { const k = costFn(n + 1); if (k > this.s.gold) break; n++; c = k; } return [n, c]; }
@@ -164,11 +171,11 @@
 
     // ---------- 隊伍 ----------
     teamSize() { let n = 3; for (const t of D.TEAM.slots) if (this.s.maxStage >= t.at) n = t.n; return n; }
-    slotOrder(id) { const d = this.heroDef(id), li = D.ORDER.indexOf(id); return D.ROLES[d.role].order * 100 + (li >= 0 ? li : 10) * 5 - d.rar; }
+    slotOrder(id) { const d = this.heroDef(id), li = D.ORDER.indexOf(this.baseOf(id)); return D.ROLES[d.role].order * 100 + (li >= 0 ? li : 10) * 5 - d.rar; }
     // 依 s.team 重建 game.heroes（還在隊上的人保留血量、充能；新上場的滿血）
     buildTeam() {
       const old = this.heroes || [], size = this.teamSize();
-      let ids = this.s.team.filter(id => this.owned(id) && this.heroDef(id)).slice(0, size);
+      let ids = this.uniqBase(this.s.team.filter(id => this.owned(id) && this.heroDef(id))).slice(0, size);
       if (!ids.length) ids = D.ORDER.filter(id => this.owned(id)).slice(0, size);   // 名冊沒載到之類的意外：至少原本四人上場
       ids.sort((a, b) => this.slotOrder(a) - this.slotOrder(b));
       this.s.team = ids.slice();
@@ -187,7 +194,7 @@
     // 換隊伍：ids 依序取已擁有的人，最多 teamSize() 人；站位自動依職業排
     setTeam(ids) {
       const size = this.teamSize(), out = [];
-      for (const id of ids || []) if (this.owned(id) && this.heroDef(id) && !out.includes(id) && out.length < size) out.push(id);
+      for (const id of ids || []) if (this.owned(id) && this.heroDef(id) && !out.some(x => this.sameBase(x, id)) && out.length < size) out.push(id);
       if (!out.length) return false;
       const same = out.length === this.s.team.length && out.every(id => this.s.team.includes(id));
       this.s.team = out.sort((a, b) => this.slotOrder(a) - this.slotOrder(b));
@@ -205,7 +212,7 @@
     calcTeam() {
       const db = this.deptBonus();
       let aura = 0;
-      for (const id of this.s.team) { const d = this.heroDef(id); if (d && d.role === 'support' && id !== 'vivi') aura += D.SUPPORT.aura[d.rar]; }
+      for (const id of this.s.team) { const d = this.heroDef(id); if (d && d.role === 'support' && this.baseOf(id) !== 'vivi') aura += D.SUPPORT.aura[d.rar]; }
       this._dept = db; this._teamMul = (1 + (db ? db.add : 0)) * (1 + aura);
     }
     teamMul() { return this._teamMul || 1; }
@@ -222,14 +229,18 @@
       } else pool.forEach(k => add(k, 1 / pool.length));
       return { w, boss };
     }
-    // 自動編隊用的單人估值（不含隊伍加成）
-    heroVals(id, wk) {
+    // 自動編隊用的單人估值（不含隊伍加成）。potential：當作已經補到最高等級來估（自動升級會幫他補等）
+    heroVals(id, wk, potential) {
       const d = this.heroDef(id), weak = 1 + (D.WEAK - 1) * ((wk && wk[d.dept]) || 0);
+      const lv0 = this.s.heroes[id], top = this.topLv();
+      if (potential && lv0 < top) this.s.heroes[id] = top;
+      const atk = this.baseAtk(id), hp = this.heroHp(id);
+      this.s.heroes[id] = lv0;
       return {
-        id, role: d.role, dept: d.dept, hp: this.heroHp(id),
-        off: this.baseAtk(id) * d.aspd * this.roleDps(d) * weak * (d.role === 'healer' ? 0.6 : 1),
+        id, role: d.role, dept: d.dept, hp,
+        off: atk * d.aspd * this.roleDps(d) * weak * (d.role === 'healer' ? 0.6 : 1),
         buff: d.role === 'support' ? this.supportBuff(d) : 0,
-        aura: d.role === 'support' && id !== 'vivi' ? D.SUPPORT.aura[d.rar] : 0
+        aura: d.role === 'support' && this.baseOf(id) !== 'vivi' ? D.SUPPORT.aura[d.rar] : 0
       };
     }
     // 隊伍估分：輸出 × √(耐打度)；有坦克、治療耐打度加成，增益與同部門加成乘在輸出上
@@ -256,17 +267,18 @@
       const wk = this.stageWeak(this.s.stage).w;
       const ids = this.ownedIds(), V = {};
       for (const id of ids) V[id] = this.heroVals(id, wk);
-      const size = Math.min(this.teamSize(), ids.length), sc = t => this.teamScore(t.map(id => V[id]));
+      const size = Math.min(this.teamSize(), new Set(ids.map(id => this.baseOf(id))).size), sc = t => this.teamScore(t.map(id => V[id]));
       const team = [];
       while (team.length < size) {
         let best = null, bs = -1;
-        for (const id of ids) if (!team.includes(id)) { const x = sc(team.concat(id)); if (x > bs) { bs = x; best = id; } }
+        for (const id of ids) if (!team.some(t => this.sameBase(t, id))) { const x = sc(team.concat(id)); if (x > bs) { bs = x; best = id; } }
+        if (!best) break;
         team.push(best);
       }
       for (let pass = 0; pass < 3; pass++) {
         let cur = sc(team), better = false;
         for (let i = 0; i < team.length; i++) for (const id of ids) {
-          if (team.includes(id)) continue;
+          if (team.some((t, j) => j !== i && this.sameBase(t, id)) || team[i] === id) continue;
           const t2 = team.slice(); t2[i] = id; const x = sc(t2);
           if (x > cur * 1.001) { team[i] = id; cur = x; better = true; }
         }
@@ -284,7 +296,7 @@
       const size = this.teamSize(); let added = false;
       const wk = this.stageWeak(this.s.stage).w;
       while (this.s.team.length < size) {
-        const bench = this.ownedIds().filter(id => !this.s.team.includes(id));
+        const bench = this.ownedIds().filter(id => !this.s.team.some(t => this.sameBase(t, id)));
         if (!bench.length) break;
         const cur = this.s.team.filter(id => this.heroDef(id)).map(id => this.heroVals(id, wk));
         let best = null, bs = -1;
@@ -313,9 +325,9 @@
       if (rar >= 4) P.ur = 0;
       return rar;
     }
-    // 原本四人還沒加入的不會被抽到；該稀有度沒人時往下找、再往上找
+    // 原本四人（和他們的主題版本）還沒加入前不會被抽到；該稀有度沒人時往下找、再往上找
     pickHero(rar) {
-      const ok = h => !h.legacy || this.owned(h.id);
+      const ok = h => (!h.legacy || this.owned(h.id)) && (!h.base || this.owned(h.base));
       const order = [rar]; for (let i = rar - 1; i >= 0; i--) order.push(i); for (let i = rar + 1; i < 5; i++) order.push(i);
       for (const r of order) {
         const pool = D.ALLHEROES.filter(h => h.rar === r && ok(h));
@@ -488,7 +500,7 @@
     }
     makeEnemy(k, s, hpScale, x, slot) {
       const t = D.ENEMIES[k];
-      const hp = (s >= 50 ? C.enemyHp(s) * Math.pow(1.02, s - 50) : C.enemyHp(s)) * t.hp * hpScale * (t.boss ? 1 : C.mobHp(s));
+      const hp = (s >= 50 ? C.enemyHp(s) * Math.pow(1.02, s - 50) : C.enemyHp(s)) * t.hp * hpScale * (t.boss ? C.bossHp(Math.min(s, 49)) : C.mobHp(Math.min(s, 49)));
       return {
         k, t, boss: !!t.boss, hp, max: hp, atk: C.enemyAtk(s) * t.atk, shield: 0, shieldMax: 0,
         x, y: GROUND, slot, cd: 0.8 + Math.random() * 0.6, stun: 0, dead: false, uid: Math.random()
@@ -543,6 +555,7 @@
       if (e.boss) dmg *= 1 + this.tSum('boss');
       let absorbed = 0, weak = false;
       if (h && e.t.weak && e.t.weak === h.def.dept) { dmg *= D.WEAK; weak = true; }
+      if (e.scare > 0) dmg *= SCARE_MUL;
       if (e.shield > 0) {
         // 護盾：點擊 ×3、大招全額，一般攻擊只削 30%（單體職業 60%）；打破後剩下的傷害才扣血
         const eff = src === 'tap' ? 3 : (extra && extra.ult) ? 1 : h && h.def.role === 'dps' ? 0.6 : 0.3;
@@ -665,7 +678,7 @@
       if (Math.random() < 0.3) this.say(h, pick(h.def.talk.ult), 0.2);
       const role = h.def.role, src = id + '-ult', X = { ult: true };
       if (role === 'tank') {
-        const sh = h.max * 0.4 * (1 + (id === 'mi' ? this.tSum('miShield') : 0));
+        const sh = h.max * 0.4 * (1 + (this.baseOf(id) === 'mi' ? this.tSum('miShield') : 0));
         this.heroes.forEach(x => { if (x.on && !x.dead) x.shield = Math.max(x.shield, sh); });
         this.alive().forEach(e => e.stun = e.boss ? 1 : 2.5); // 頭目只暈 1 秒，而且照樣放技能
       } else if (role === 'crit') {
@@ -679,9 +692,10 @@
       } else if (role === 'support') {
         const k = this.supportBuff(h.def), on = this.buffT > 0;
         this.buffAtk = Math.max(on ? this.buffAtk : 1, 1 + k);
-        this.buffAspd = Math.max(on ? this.buffAspd : 1, id === 'vivi' ? 1.4 : 1 + 0.5 * k);
+        const vivi = this.baseOf(id) === 'vivi';
+        this.buffAspd = Math.max(on ? this.buffAspd : 1, vivi ? 1.4 : 1 + 0.5 * k);
         this.buffT = 8;
-        if (id === 'vivi') {
+        if (vivi) {
           const g = Math.ceil(C.gold(this.s.stage) * 5 * this.goldMul());
           this.s.gold += g; this.emit({ type: 'goldrain', gold: g });
         }
@@ -691,6 +705,14 @@
           if (x.dead) this.heal(x, x.max * D.HEAL.revive, h, true);
           else this.heal(x, x.max * D.HEAL.ult, h);
         }
+      }
+      // 主題版本的小特色（萬聖節嚇一跳、尾牙撒紅包）
+      const th = h.def.base && D.THEME[h.def.rar];
+      if (th && th.scare) this.alive().forEach(e => { e.scare = th.scare.dur; if (!e.boss) e.stun = Math.max(e.stun, th.scare.stun); });
+      if (th && th.party) {
+        const g = Math.ceil(C.gold(this.s.stage) * th.party.gold * this.goldMul());
+        this.s.gold += g; this.emit({ type: 'goldrain', gold: g, h });
+        this.heroes.forEach(x => { if (x !== h && x.on && !x.dead) x.energy = Math.min(100, x.energy + th.party.energy); });
       }
       return true;
     }
@@ -851,7 +873,7 @@
       this.checkJoin(false);
       if (this.s.farming) {
         this.farmClears = (this.farmClears || 0) + 1;
-        if (this.s.autoBoss && this.farmClears >= 2) { this.farmClears = 0; this.s.farming = false; this.s.stage = this.s.maxStage; }
+        if (this.s.autoBoss && this.farmClears >= D.BOSS_RETRY) { this.farmClears = 0; this.s.farming = false; this.s.stage = this.s.maxStage; }
       } else this.s.stage = this.s.maxStage;
       this.startStage();
     }
@@ -931,6 +953,7 @@
       let slotN = 0;
       for (const e of this.enemies) {
         if (e.dead) continue;
+        if (e.scare > 0) e.scare -= dt;
         if (e.stun > 0) { e.stun -= dt; if (e.boss) this.updateBoss(e, dt); continue; }
         const stopX = (front ? front.x : 200) + 58 + slotN * 34 + (e.boss ? 56 : 0);
         slotN++;
