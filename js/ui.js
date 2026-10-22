@@ -4,7 +4,7 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
-  G.VERSION = 'v1.3.2';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
+  G.VERSION = 'v1.3.3';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
   const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });   // 原本四人（劇情、升職造型用）
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
 
@@ -1142,9 +1142,18 @@
     }
   }
 
+  // 離線準備進度：數這一版快取裡有幾個檔案
+  async function offlineStatus() {
+    try {
+      if (!('caches' in window) || !navigator.serviceWorker || !navigator.serviceWorker.controller) return '第一次打開後會在背景下載，下次打開就能離線玩';
+      const c = await caches.open('office-idle-' + G.VERSION), n = (await c.keys()).length;
+      return n >= 280 ? '已準備好，沒有網路也能玩' : `下載中（${n} 個檔案），請在有網路時多開一下`;
+    } catch (e) { return '這個瀏覽器不支援離線遊玩'; }
+  }
   function settings() {
     const A = G.Audio;
-    modal(`<h2>設定</h2><p>進度會自動存在這台裝置的瀏覽器裡。</p><p>目前版本：<b>${G.VERSION}</b></p>`, [
+    setTimeout(() => offlineStatus().then(t => { const el = $('#offTx'); if (el) el.textContent = '✈️ 離線遊玩：' + t; }), 0);
+    modal(`<h2>設定</h2><p>進度會自動存在這台裝置的瀏覽器裡。</p><p>目前版本：<b>${G.VERSION}</b></p><p id="offTx" class="small">✈️ 離線遊玩：檢查中…</p>`, [
       [A.muted ? '🔊 開啟聲音' : '🔇 關閉聲音', false, () => A.setMute(!A.muted)],
       [A.music ? '🎵 關閉音樂' : '🎵 開啟音樂', false, () => A.setMusic(!A.music)],
       ['📲 主畫面圖示', false, iconPicker],
@@ -1234,6 +1243,10 @@
     $('#btnSet').onclick = settings;
     $('#cheer').onclick = () => toast(`📣 同事打氣中：攻擊、血量 ×${(+game.cheerMul().toFixed(1))}，順利過幾關後會慢慢退掉`);
     applyIcon(iconChoice());
+    // 離線遊玩：註冊 Service Worker（第一次打開後在背景把遊戲檔案存到手機）
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
     $('#btnA2hs').onclick = e => { e.stopPropagation(); G.Audio.unlock(); iconPicker(); };
     addEventListener('keydown', onKey);
     G.__reset = () => { resetting = true; localStorage.removeItem(KEY); location.reload(); };
