@@ -1,5 +1,5 @@
 // 離線快取（tools/build_sw.js 產生，不要手改 sw.js）
-const VERSION = 'v1.3.4';
+const VERSION = 'v1.4.0';
 const CACHE = 'office-idle-' + VERSION;
 const FILES = ["./",
   "art/bg/bg1.webp",
@@ -311,7 +311,32 @@ const FILES = ["./",
   "js/roster.js",
   "js/ui.js",
   "manifest.webmanifest",
-  "style.css"];
+  "style.css",
+  "art/bg/bg10.webp",
+  "art/bg/bg6.webp",
+  "art/bg/bg7.webp",
+  "art/bg/bg8.webp",
+  "art/bg/bg9.webp",
+  "art/enemy/b_996.webp",
+  "art/enemy/b_ceo.webp",
+  "art/enemy/b_duty.webp",
+  "art/enemy/b_merger.webp",
+  "art/enemy/b_unpaid.webp",
+  "art/enemy/cctv.webp",
+  "art/enemy/contract.webp",
+  "art/enemy/layoff.webp",
+  "art/enemy/pie.webp",
+  "art/enemy/shackle.webp",
+  "art/enemy/spy.webp",
+  "art/enemy/suit.webp",
+  "art/enemy/timeclock.webp",
+  "art/enemy/unpaid.webp",
+  "art/map/week1.webp",
+  "art/map/week2.webp",
+  "art/ui/challenge.webp",
+  "art/villain/logo.webp",
+  "art/villain/v_aide.webp",
+  "art/villain/v_ceo.webp"];
 
 self.addEventListener('install', e => {
   // 一個一個抓，失敗的跳過（不要因為一張圖讓整個離線功能裝不起來）

@@ -114,6 +114,11 @@
       [523, 659, 784, 1047].forEach(f => tone(f, 1.0, 'sawtooth', 0.022, 0.08, 0, null, { lp: 2600, atk: 0.12 }));
       [1568, 2093, 2637, 3136].forEach((f, i) => tone(f, 0.2, 'triangle', 0.035, 0.35 + i * 0.07));
     },
+    // ---------- v1.4 地圖、挑戰星星、反派登場 ----------
+    map() { if (!gate('map', 300)) return; noise(0.3, 0.05, 900, 'bandpass', 0, 1800); [523, 784].forEach((f, i) => tone(f, 0.14, 'triangle', 0.05, 0.12 + i * 0.07)); },
+    star(i = 0) { const f = [1047, 1319, 1568][Math.max(0, Math.min(2, i))]; tone(f, 0.25, 'triangle', 0.08); tone(f * 2, 0.18, 'sine', 0.035, 0.04); noise(0.15, 0.03, 6000, 'highpass', 0.02); },
+    // 反派說話：低沉小調和弦（同一段劇情只響一次）
+    villain() { if (!gate('vil', 2000)) return; tone(73, 0.9, 'sawtooth', 0.05, 0, -8, null, { lp: 500 }); [220, 262, 311].forEach(f => tone(f, 0.8, 'sawtooth', 0.018, 0.05, 0, null, { lp: 900, atk: 0.08 })); tone(55, 0.7, 'sine', 0.25, 0, -10); },
     // UR 登場：雷聲＋大和弦＋閃爍上行
     urIn() {
       tone(55, 1.2, 'sine', 0.38, 0, -20); noise(1.0, 0.14, 260, 'lowpass', 0, -150); noise(0.4, 0.06, 3000, 'bandpass', 0.05, 3000);

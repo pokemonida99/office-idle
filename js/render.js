@@ -56,8 +56,11 @@
   function assets(team) {
     const l = [];
     teamIds(team).forEach(id => { l.push(...heroFiles(id)); HUSE.set(id, ++useN); });
-    Object.keys(D.ENEMIES).forEach(k => { const t = D.ENEMIES[k]; if (!t.img) l.push([k, t.boss ? `art/enemy/${k}.webp` : `art/enemy/${k.slice(2)}.webp`]); });
+    // 怪物與背景：第一週的全部先載；第二週（黑心公司篇）只載目前章節的，其他等打到再載
+    const w2 = week2Keys(), cur = curChapter();
+    Object.keys(D.ENEMIES).forEach(k => { const t = D.ENEMIES[k]; if (!t.img && (!w2.has(k) || chapterKeys(cur).has(k))) l.push([k, enemySrc(k)]); });
     for (let i = 1; i <= 5; i++) l.push(['bg' + i, `art/bg/bg${i}.webp`]);
+    if (cur >= 5 && D.CHAPTERS[cur]) l.push([D.CHAPTERS[cur].bg, `art/bg/${D.CHAPTERS[cur].bg}.webp`]);
     Object.keys(BONUS_EMOJI).forEach(k => l.push(['bonus_' + k, `art/ui/bonus_${k}.webp`]));
     ['wood', 'gold'].forEach(k => l.push(['chest_' + k, `art/item/chest_${k}.webp`]));
     return l;
@@ -96,6 +99,69 @@
       [...heroFiles(id).map(f => f[0]), 'face_' + id].forEach(k => { if (IMG[k] && CUR) CUR.sc.drop(IMG[k]); delete IMG[k]; });
       const fb = FALL.get(id); if (fb && CUR) CUR.sc.drop(fb); FALL.delete(id);
     }
+  }
+  // ---------- 怪物、背景：第二週的圖需要時才載；沒圖時有退路 ----------
+  const enemySrc = k => { const t = D.ENEMIES[k] || {}; return t.src || (t.boss ? `art/enemy/${k}.webp` : `art/enemy/${k.slice(2)}.webp`); };
+  const LAZY = new Map();   // key → 'wait' | 'ok' | 失敗時間
+  function ensureImg(k, src) {
+    if (!k || IMG[k]) return;
+    const st = LAZY.get(k);
+    if (st === 'wait' || (typeof st === 'number' && performance.now() - st < 30000)) return;   // 失敗過（圖還沒生好）30 秒後再試
+    LAZY.set(k, 'wait');
+    load([[k, src]]).then(() => LAZY.set(k, IMG[k] ? 'ok' : performance.now()));
+  }
+  const ensureEnemy = k => { const t = D.ENEMIES[k]; if (t && !t.img) ensureImg(k, enemySrc(k)); };
+  const ensureBg = k => ensureImg(k, `art/bg/${k}.webp`);
+  function chapterKeys(ci) {
+    const ch = D.CHAPTERS[ci], set = new Set(); if (!ch) return set;
+    (ch.pool || []).forEach(k => set.add(k)); if (ch.boss) set.add(ch.boss);
+    (Array.isArray(ch.bosses) ? ch.bosses : []).forEach(k => set.add(k));
+    for (const k of [...set]) { const t = D.ENEMIES[k]; if (t) [t.skills, t.skills2, t.skills3].forEach(a => (a || []).forEach(sk => { if (sk.minion) set.add(sk.minion); })); }
+    return set;
+  }
+  let W2 = null;
+  function week2Keys() {   // 只出現在第 6 章以後的怪物
+    if (W2) return W2;
+    const a = new Set(), b = new Set();
+    D.CHAPTERS.forEach((c, i) => chapterKeys(i).forEach(k => (i < 5 ? a : b).add(k)));
+    VILLAIN_IDS.forEach(k => b.add(k));
+    W2 = new Set([...b].filter(k => !a.has(k))); return W2;
+  }
+  function curChapter() {
+    const g = CUR && CUR.g; if (!g || !g.s) return 0;
+    const n = D.CHAPTERS.length, s = g.s.stage || 0;
+    return s >= n * 10 ? -1 : Math.min(n - 1, Math.floor(s / 10));
+  }
+  const VILLAIN_IDS = ['b_996', 'b_unpaid', 'b_duty', 'b_merger', 'b_ceo'];
+  const isVillain = e => !!(e && e.boss && (e.t && e.t.villain || VILLAIN_IDS.includes(e.k)));
+  const isCeo = e => !!(e && (e.k === 'b_ceo' || (e.t && e.t.final)));
+  // 怪物圖還沒好：黑心色的小怪剪影（紅眼、鋸齒嘴；頭目加角）
+  const EFALL = new Map();
+  function enemyFallback(e) {
+    const k = e.k, boss = !!e.boss; let c = EFALL.get(k); if (c) return c;
+    const w = boss ? 240 : 200, h = boss ? 280 : 200; c = canvas(w, h); const x = c.getContext('2d');
+    const cx = w / 2, by = h - 6, r = w * 0.4;
+    x.lineJoin = 'round'; x.lineWidth = 7; x.strokeStyle = '#120812';
+    if (boss) { x.fillStyle = '#3a0f1c'; x.beginPath(); x.moveTo(cx - r * 0.7, by - r * 1.9); x.lineTo(cx - r * 0.45, by - r * 2.5); x.lineTo(cx - r * 0.15, by - r * 1.95); x.moveTo(cx + r * 0.15, by - r * 1.95); x.lineTo(cx + r * 0.45, by - r * 2.5); x.lineTo(cx + r * 0.7, by - r * 1.9); x.fill(); x.stroke(); }
+    x.fillStyle = '#2b1530';
+    x.beginPath(); x.moveTo(cx - r, by); x.quadraticCurveTo(cx - r * 1.15, by - r * 2.1, cx, by - r * (boss ? 2.05 : 1.9)); x.quadraticCurveTo(cx + r * 1.15, by - r * 2.1, cx + r, by);
+    for (let i = 0; i <= 5; i++) x.lineTo(cx + r - i * r * 0.4, by - (i % 2 ? 10 : 0));
+    x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = 'rgba(255,60,90,0.25)'; x.beginPath(); x.ellipse(cx - r * 0.25, by - r * 1.4, r * 0.35, r * 0.25, -0.4, 0, 7); x.fill();
+    const ey = by - r * 1.15;
+    x.fillStyle = '#ff2a44'; x.beginPath(); x.ellipse(cx - r * 0.35, ey, r * 0.17, r * 0.12, 0.3, 0, 7); x.ellipse(cx + r * 0.35, ey, r * 0.17, r * 0.12, -0.3, 0, 7); x.fill();
+    x.fillStyle = '#ffd0d6'; x.beginPath(); x.arc(cx - r * 0.3, ey - 2, r * 0.05, 0, 7); x.arc(cx + r * 0.4, ey - 2, r * 0.05, 0, 7); x.fill();
+    x.fillStyle = '#fff'; x.beginPath(); x.moveTo(cx - r * 0.45, by - r * 0.7);
+    for (let i = 0; i <= 6; i++) x.lineTo(cx - r * 0.45 + i * r * 0.15, by - r * (i % 2 ? 0.55 : 0.7));
+    x.lineTo(cx + r * 0.45, by - r * 0.45); x.lineTo(cx - r * 0.45, by - r * 0.45); x.closePath(); x.fill();
+    c.fallback = true; EFALL.set(k, c); return c;
+  }
+  let VIG = null;
+  function vignette() {   // 左右邊緣紅黑暗角（橫向漸層，貼的時候拉高）
+    if (VIG) return VIG;
+    const c = canvas(64, 4), x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 64, 0);
+    g.addColorStop(0, 'rgba(20,0,6,0.85)'); g.addColorStop(0.45, 'rgba(90,0,20,0.35)'); g.addColorStop(1, 'rgba(90,0,20,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 4); return (VIG = c);
   }
   // 自動量圖：不透明範圍的上下緣（圖有留白也能對齊）、腳底與身體的水平中心（錨點），不用逐張手調
   function meta(im) {
@@ -300,6 +366,7 @@
       this.scale = this.cv.width / W;
       this.sc.reset(this.scale); this.bgc.clear(); this.gly.clear();
       this.says.forEach(b => b.c = null); this.nums.forEach(n => n.c = null);
+      if (this.intro) { this.intro.cn = null; this.intro.cl = null; }
     }
     toWorld(cx, cy) { const r = this.cv.getBoundingClientRect(); return [(cx - r.left) / r.width * W, (cy - r.top) / r.height * H]; }
     A(o) {
@@ -476,9 +543,13 @@
         }
         case 'down': if (e.h) { this.A(e.h).die = 0.001; this.addShake(0.2); } break;
         case 'ult': if (e.h) this.ultFx(e.h); break;
-        case 'stage': this.anim.clear(); this.says.length = 0; this.cast = null; this.combo = null; this.later.length = 0; this.fx = this.fx.filter(f => f.k === 'rankup'); this.heroRef = null; break;
+        case 'stage': this.prefetch(); this.intro = null; this.anim.clear(); this.says.length = 0; this.cast = null; this.combo = null; this.later.length = 0; this.fx = this.fx.filter(f => f.k === 'rankup'); this.heroRef = null; break;
         case 'wave':
-          if (e.boss) this.banner = { text: 'BOSS 來襲！', t: 0, d: 1.6, c: '#ff4d6d' };
+          if (e.boss) {
+            const b = g.enemies.find(q => q.boss && !q.dead);
+            if (isVillain(b)) this.startIntro(b, 'appear', null, true);   // 反派頭目：變暗＋紅色大字台詞
+            else this.banner = { text: 'BOSS 來襲！', t: 0, d: 1.6, c: '#ff4d6d' };
+          }
           g.heroes.forEach(h => { if (h.on && !h.dead) this.A(h).sqv += 4; });   // 停下時落地彈一下
           break;
         case 'clear': if (e.boss) this.banner = { text: '頭目擊破！', t: 0, d: 1.6, c: '#ffd23f' }; break;
@@ -507,11 +578,14 @@
           break;
         }
         case 'bossPhase': {
-          const en = e.e, H0 = enemyH(en);
-          this.banner = { text: '頭目變身！', t: 0, d: 1.6, c: '#d6a4ff' };
-          this.flash = 0.45; this.flashC = '170,80,255'; this.addShake(0.75); this.hitStop(0.12);
-          this.addFx({ k: 'ringC', x: en.x, y: en.y - H0 * 0.5, d: 0.6, c: '#c58bff', r: 130 });
-          this.burst(en.x, en.y - H0 * 0.5, ['#c58bff', '#fff', '#ff5d8f'], 26, 220, 'star');
+          const en = e.e; if (!en) break;
+          const H0 = enemyH(en), ph = e.phase || en.phase || 2, p3 = ph >= 3;
+          if (isVillain(en)) this.startIntro(en, p3 ? 'p3' : 'p2', e.line || (p3 ? en.t.phase3 : en.t.phase2) || null, false);
+          else this.banner = { text: p3 ? '最終形態！' : '頭目變身！', t: 0, d: 1.6, c: p3 ? '#ff4d6d' : '#d6a4ff' };
+          this.flash = 0.45; this.flashC = p3 ? '255,30,60' : '170,80,255'; this.addShake(p3 ? 0.9 : 0.75); this.hitStop(p3 ? 0.16 : 0.12);
+          this.addFx({ k: 'ringC', x: en.x, y: en.y - H0 * 0.5, d: 0.6, c: p3 ? '#ff3d55' : '#c58bff', r: p3 ? 170 : 130 });
+          this.burst(en.x, en.y - H0 * 0.5, p3 ? ['#ff3d55', '#1a0008', '#ffd23f'] : ['#c58bff', '#fff', '#ff5d8f'], p3 ? 34 : 26, 220, 'star');
+          if (p3) this.paper(en.x, en.y - H0 * 0.6, 24, 1.4);
           break;
         }
         case 'chest':
@@ -519,8 +593,25 @@
           this.burst(e.e.x, e.e.y - 50, e.kind === 'gold' ? ['#ffe066', '#fff'] : ['#ffcf7a', '#fff'], 10, 120, 'star');
           break;
         case 'bonusGone': this.addFx({ k: 'bonusGone', x: e.b.x, y: e.b.y, kind: e.b.kind, d: 0.5 }); break;
+        case 'challengeStart': {
+          const c = e.c || g.challenge || {};
+          this.banner = { text: '挑戰：' + (c.name || '特別任務'), t: 0, d: 1.8, c: '#7ef0ff' };
+          this.chl = null; this.flash = Math.max(this.flash, 0.2); this.flashC = '120,230,255';
+          break;
+        }
+        case 'challengeEnd': {
+          if (e.win) {
+            for (let i = 0; i < 30; i++) this.parts.push({ k: 'star', x: rand(40, W - 40), y: rand(40, 200), vx: rand(-30, 30), vy: rand(-90, -20), c: i % 3 ? '#ffd23f' : '#fff', t: 0, d: rand(0.7, 1.2), r: rand(2.5, 4.5), rot: Math.random() * 6 });
+            this.flash = 0.3; this.flashC = '255,230,150'; this.capParts();
+          } else { this.flash = 0.35; this.flashC = '20,10,30'; }
+          this.chl = null;
+          break;
+        }
+        case 'bossIntro': if (e.e) this.startIntro(e.e, 'appear', e.line || null, true); break;
         case 'say': {
           if (!e.who || !e.text) break;
+          // 反派頭目登場／變身的台詞改成大字演出，不另外冒泡泡
+          const I = this.intro; if (I && I.e === e.who && (!I.line || I.line === e.text) && (I.t < 0 || I.t < 0.5)) { I.line = e.text; I.cl = null; break; }
           const i = this.says.findIndex(b => b.who === e.who); if (i >= 0) this.says.splice(i, 1);
           while (this.says.length >= 2) this.says.shift();
           this.says.push({ who: e.who, text: e.text, t: 0, d: 2.1, c: null });
@@ -544,6 +635,24 @@
           } else if (sk.kind === 'shield') {
             this.addFx({ k: 'ringC', x: en.x, y: en.y - BOSS_H * 0.5, d: 0.5, c: '#8fd8ff', r: 110 });
             this.burst(en.x, en.y - BOSS_H * 0.5, ['#bfe9ff', '#fff'], 16, 160, 'star');
+          } else if (sk.kind === 'stun') {   // 加班鎖定：鎖鏈從四周收緊
+            g.heroes.forEach((h, i) => { if (h.on && !h.dead) { const L = this.layout(h); this.addFx({ k: 'chain', x: h.x, y: L.gy - L.hh * 0.45, r: L.hh * 0.42, d: 0.5 }); const a = this.A(h); a.hit = 0.12; a.sqv += 3; } });
+            this.addFx({ k: 'label', x: 140, y: 70, d: 1.2, text: '加班鎖定！動不了！', c: '#ff8a9a' });
+            this.flash = 0.25; this.flashC = '255,40,60'; this.addShake(0.45); this.hitStop(0.08);
+          } else if (sk.kind === 'drain') {   // 扣薪：每人身上一顆金色光球被吸到頭目身上
+            const eh = enemyH(en);
+            g.heroes.forEach((h, i) => { if (h.on && !h.dead) { const L = this.layout(h); this.addFx({ k: 'suck', x: h.x, y: L.gy - L.hh * 0.5, tx: en.x, ty: en.y - eh * 0.5, d: 0.55 + i * 0.06 }); this.burst(h.x, L.gy - L.hh * 0.5, ['#ffe066', '#fff'], 4, 80, 'star'); } });
+            this.addFx({ k: 'label', x: en.x - 20, y: en.y - eh - 4, d: 1.2, text: '扣薪！充能被吸走', c: '#ffe066' });
+            this.flash = 0.2; this.flashC = '120,60,0'; this.addShake(0.3);
+          } else if (sk.kind === 'heal') {   // 頭目回血
+            const eh = enemyH(en);
+            this.addFx({ k: 'pillar', x: en.x, y: GROUND, d: 0.9, c: '#7dff9a' });
+            this.burst(en.x, en.y - eh * 0.5, ['#7dff9a', '#fff'], 14, 150, 'plus');
+            this.addFx({ k: 'label', x: en.x, y: en.y - eh - 4, d: 1.1, text: '頭目回血了！', c: '#7dff9a' });
+          } else if (sk.kind === 'curse') {   // 詛咒：全隊攻擊下降
+            g.heroes.forEach(h => { if (h.on && !h.dead) { const L = this.layout(h); this.addFx({ k: 'ringC', x: h.x, y: L.gy - L.hh * 0.5, d: 0.5, c: '#b05cff', r: 40 }); this.puff(h.x, L.gy - L.hh * 0.6, 3); } });
+            this.addFx({ k: 'label', x: 140, y: 70, d: 1.2, text: '被詛咒了！攻擊下降', c: '#d6a4ff' });
+            this.flash = 0.25; this.flashC = '90,20,140'; this.addShake(0.3);
           } else { this.flash = 0.2; this.flashC = '255,60,80'; this.addShake(0.4); }
           this.capParts();
           break;
@@ -551,6 +660,12 @@
       }
     }
     tapFx(x, y) {
+      const ch = this.g.mode === 'challenge' && this.g.challenge, R = ch && ch.rules || {};
+      if (R.noTap) {   // 挑戰禁止點擊：畫禁止符號，不畫「催！」
+        this.addFx({ k: 'noTap', x, y, d: 0.45 });
+        if (!(this.noTapT > this.rt)) { this.noTapT = this.rt + 0.8; this.addFx({ k: 'label', x, y: y - 18, d: 0.8, text: '這關禁止催稿！', c: '#ff8a9a' }); }
+        return;
+      }
       this.lastTap = [x, y];
       this.addFx({ k: 'tap', x, y, d: 0.35 }); this.burst(x, y, '#ffe17a', 4, 50);
     }
@@ -654,6 +769,7 @@
 
       this.drawBg(dt);
       this.base();
+      this.drawGloom(dt);
 
       // 先算姿勢，再畫全部陰影與地面預警，最後畫角色（陰影不會蓋到別人身上）
       this.syncTeam(); const heroes = this.heroList;
@@ -680,7 +796,9 @@
       this.drawNums(adt);
       this.drawCombo(dt);
       x.setTransform(s, 0, 0, s, 0, 0);
+      if (this.intro) this.drawIntro(dt);
       this.drawHud(dt);
+      this.drawChallenge(dt);
       if (this.cutin) this.drawCutin(dt);
       if (this.banner) this.drawBanner(dt);
       if (this.flash > 0) { x.fillStyle = `rgba(${this.flashC},${this.flash})`; x.fillRect(0, 0, W, H); this.flash = Math.max(0, this.flash - dt * 1.5); }
@@ -690,18 +808,34 @@
         x.fillText(`draw ${this.ms.toFixed(2)}ms ${Math.round(this.fps)}fps p${this.parts.length}`, 5, H - 5);
       }
     }
-    bgKey() { const s = this.g.s.stage; return s >= 50 ? 'bg' + (Math.floor((s - 50) / 10) % 5 + 1) : D.CHAPTERS[G.Engine.chapterOf(s)].bg; }
+    // 背景：engine 有 bgKey() 就用（挑戰模式會給該章背景），不然依關卡推；加班模式輪流用全部背景
+    bgKey() {
+      const g = this.g;
+      if (typeof g.bgKey === 'function') { try { const k = g.bgKey(); if (k) return k; } catch (e) {} }
+      const s = g.s.stage || 0, n = D.CHAPTERS.length, main = D.MAIN || n * 10;
+      if (g.challenge && typeof g.curChapter === 'function') { const c = D.CHAPTERS[g.curChapter()]; if (c && c.bg) return c.bg; }   // 挑戰：該章背景
+      if (s >= main) { const c = D.CHAPTERS[Math.floor((s - main) / 10) % n]; return (c && c.bg) || 'bg1'; }   // 加班模式：十章背景輪流
+      const ch = D.CHAPTERS[Math.min(n - 1, Math.floor(s / 10))]; return (ch && ch.bg) || 'bg1';
+    }
     // 背景依實際比例縮成整數像素高的 tile，連同底部壓暗一起快取
-    bgTile(im) {
-      let c = this.bgc.get(im); if (c) return c;
+    // mode 1：黑心公司篇，上下多一層紅黑暗角；mode 2：第二週背景還沒好，借第一週的圖整張壓成紅黑色
+    bgTile(im, mode = 0) {
+      let m = this.bgc.get(im); if (!m) this.bgc.set(im, m = []);
+      let c = m[mode]; if (c) return c;
       const th = this.cv.height, tw = Math.max(2, Math.round(im.width / im.height * th));
       c = canvas(tw, th); const x = c.getContext('2d');
       x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
       x.drawImage(im, 0, 0, tw, th);
+      if (mode === 2) { x.globalCompositeOperation = 'multiply'; x.fillStyle = '#7a4a5e'; x.fillRect(0, 0, tw, th); x.globalCompositeOperation = 'source-over'; x.fillStyle = 'rgba(40,0,12,0.22)'; x.fillRect(0, 0, tw, th); }
       const gr = x.createLinearGradient(0, th * 0.55, 0, th);
-      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.25)');
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, mode ? 'rgba(30,0,8,0.45)' : 'rgba(0,0,0,0.25)');
       x.fillStyle = gr; x.fillRect(0, Math.floor(th * 0.55), tw, th);
-      this.bgc.set(im, c); return c;
+      if (mode) {
+        const gt = x.createLinearGradient(0, 0, 0, th * 0.3);
+        gt.addColorStop(0, 'rgba(40,0,10,0.55)'); gt.addColorStop(1, 'rgba(40,0,10,0)');
+        x.fillStyle = gt; x.fillRect(0, 0, tw, Math.ceil(th * 0.3));
+      }
+      m[mode] = c; return c;
     }
     drawBg(dt) {
       const g = this.g, x = this.ctx;
@@ -710,16 +844,145 @@
       this.bgV += (target - this.bgV) * (1 - Math.exp(-dt * 7));
       if (this.bgV < 0.5 && target === 0) this.bgV = 0;
       this.bgX += this.bgV * dt;
-      const im = IMG[this.bgKey()];
+      const key = this.bgKey(), num = parseInt(String(key).slice(2), 10) || 1;
+      let w2 = num >= 6; if (typeof g.week2 === 'function') { try { w2 = !!g.week2(); } catch (e) {} }
+      this.week2 = w2;
+      let im = IMG[key], mode = this.week2 ? 1 : 0;
+      if (!im) { ensureBg(key); im = IMG['bg' + ((num - 1) % 5 + 1)] || IMG.bg1; if (this.week2) mode = 2; }
       x.setTransform(1, 0, 0, 1, 0, 0);
-      if (!im) { x.fillStyle = '#ccd'; x.fillRect(0, 0, this.cv.width, this.cv.height); return; }
+      if (!im) { x.fillStyle = this.week2 ? '#2a1420' : '#ccd'; x.fillRect(0, 0, this.cv.width, this.cv.height); return; }
       // tile 已預先縮好、整數像素 1:1 貼上，不會有縫；不重疊（重疊 1px 會跳掉一欄，無縫圖反而看得出來）
-      const c = this.bgTile(im), p = c.width;
+      const c = this.bgTile(im, mode), p = c.width;
       if (this.bgX > 1e6) this.bgX %= p / this.scale;
       const ox = Math.round(this.ox * this.scale * 0.5);
       let px = -(Math.round(this.bgX * this.scale) % p) + ox;
       while (px > 0) px -= p;
       for (; px < this.cv.width; px += p) x.drawImage(c, px, 0);
+    }
+    // ---------- 反派頭目登場／變身演出 ----------
+    // wait：等頭目走進畫面再開始（最多 1.2 秒）；台詞先用 engine 的 say，沒有就從 t.appear 挑
+    startIntro(e, kind, line, wait) {
+      if (!e) return;
+      if (this.intro && this.intro.e === e && this.intro.kind === kind) return;
+      const ceo = isCeo(e);
+      this.intro = { e, kind, line, t: wait ? -1 : 0, wait: 0, ceo, d: kind === 'appear' ? (ceo ? 3.2 : 2.4) : kind === 'p3' ? 2.6 : 2.0, cn: null, cl: null, fired: false };
+      this.banner = null;
+    }
+    introFire(I) {
+      I.fired = true;
+      const t = I.e.t || {};
+      if (!I.line) I.line = I.kind === 'appear' ? (Array.isArray(t.appear) && t.appear.length ? t.appear[Math.floor(Math.random() * t.appear.length)] : '') : (I.kind === 'p3' ? t.phase3 : t.phase2) || '';
+      this.flash = Math.max(this.flash, I.ceo || I.kind === 'p3' ? 0.5 : 0.3); this.flashC = '255,30,60';
+      this.addShake(I.ceo ? 0.85 : 0.55); this.hitStop(0.1);
+    }
+    introText(I) {
+      const s = this.scale, t = I.e.t || {};
+      const name = I.kind === 'p3' ? '最終形態・' + (t.name || '') : I.kind === 'p2' ? '本性顯露・' + (t.name || '') : (t.name || '頭目');
+      I.cn = textCanvas(name, I.ceo ? 22 : 19, I.ceo ? '#ffd23f' : '#ff3d55', '#1a0006', 5, s, 1.6);
+      I.ct = I.kind === 'appear' && t.title ? textCanvas('— ' + t.title + ' —', 9, '#ffb3c0', '#1a0006', 3, s, 1.4, 'bold') : null;
+      // 台詞最多兩行，每行約 15 字
+      const L = String(I.line || ''), lines = [];
+      if (L) {
+        let n = L.length;
+        if (L.length > 15) {   // 從中間附近的標點斷行
+          n = Math.ceil(L.length / 2); let best = -1;
+          for (let i = 4; i < L.length - 3; i++) if ('，。！？、…'.includes(L[i]) && (best < 0 || Math.abs(i + 1 - L.length / 2) < Math.abs(best - L.length / 2))) best = i + 1;
+          if (best > 0 && Math.abs(best - L.length / 2) < L.length * 0.3) n = best;
+        }
+        lines.push(L.slice(0, n)); if (L.length > n) lines.push(L.slice(n, n + 18));
+      }
+      I.cl = lines.map(l => textCanvas(l, 14, '#fff', '#8a0018', 4.5, s, 1.5));
+    }
+    drawIntro(dt) {
+      const I = this.intro, x = this.ctx;
+      if (!I.e || I.e.dead && I.kind === 'appear') { this.intro = null; return; }
+      if (I.t < 0) { I.wait += dt; if (I.e.x < 440 || I.wait > 1.2) I.t = 0; else return; }
+      if (!I.fired) this.introFire(I);
+      I.t += dt; const t = I.t, d = I.d;
+      if (t >= d) { this.intro = null; return; }
+      if (!I.cn || !I.cl) this.introText(I);
+      const ease = Math.min(1, t / 0.2, (d - t) / 0.35), e = I.e, p = this.A(e).p;
+      // 變暗，頭目從暗處浮出來
+      x.globalAlpha = (I.ceo ? 0.72 : 0.6) * ease; x.fillStyle = '#0a0004'; x.fillRect(0, 0, W, H);
+      if (p && p.im) {
+        const hb = I.ceo ? 1 + 0.25 * Math.exp(-((this.rt * 1.4) % 1) * 7) : 1, r = p.h * 0.75 * hb;
+        if (I.ceo) {   // 黑心董事長：身後旋轉的紅黑光芒
+          x.save(); x.translate(e.x + this.ox, p.foot - p.h * 0.5); x.rotate(this.rt * 0.6);
+          x.globalAlpha = 0.45 * ease; x.fillStyle = '#ff1a3c';
+          x.beginPath(); for (let i = 0; i < 8; i++) { const an = i * Math.PI / 4; x.moveTo(0, 0); x.lineTo(Math.cos(an - 0.12) * 190, Math.sin(an - 0.12) * 190); x.lineTo(Math.cos(an + 0.12) * 190, Math.sin(an + 0.12) * 190); } x.fill();
+          x.restore();
+        }
+        x.globalAlpha = 0.85 * ease; x.drawImage(glow(I.kind === 'p2' && !I.ceo ? 'rgba(150,40,255,0.95)' : 'rgba(255,30,60,0.95)'), e.x - r, p.foot - p.h * 0.5 - r, r * 2, r * 2);
+        x.globalAlpha = 1;
+        this.sprite(p.im, p.cx, p.foot, p.h, Object.assign({}, p, { alpha: ease, white: 0 }));
+        x.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+      }
+      // 上下黑邊＋紅黑警示斜紋
+      const bh = 22 * Math.min(1, t / 0.25, (d - t) / 0.3), off = (this.rt * 40) % 20;
+      x.globalAlpha = 1; x.fillStyle = '#000'; x.fillRect(0, 0, W, bh); x.fillRect(0, H - bh, W, bh);
+      if (bh > 4) {
+        x.fillStyle = I.ceo ? '#c8102e' : '#8a0a20'; x.globalAlpha = 0.9;
+        x.beginPath();
+        for (let i = -1; i < W / 20 + 1; i++) { const x0 = i * 20 + off; x.moveTo(x0, bh - 3); x.lineTo(x0 + 10, bh - 3); x.lineTo(x0 + 6, bh); x.lineTo(x0 - 4, bh); x.moveTo(x0, H - bh); x.lineTo(x0 + 10, H - bh); x.lineTo(x0 + 6, H - bh + 3); x.lineTo(x0 - 4, H - bh + 3); }
+        x.fill();
+      }
+      if (I.ceo && t < 0.45) {   // 開場紅色閃電
+        x.globalAlpha = (0.45 - t) / 0.45; x.strokeStyle = '#ff5d7a'; x.lineWidth = 3;
+        x.beginPath(); let lx = 60, ly = 0; x.moveTo(lx, ly); for (let i = 0; i < 6; i++) { lx += rand(-18, 26); ly += 26; x.lineTo(lx, ly); }
+        lx = W - 80; ly = 0; x.moveTo(lx, ly); for (let i = 0; i < 6; i++) { lx += rand(-26, 18); ly += 26; x.lineTo(lx, ly); } x.stroke();
+      }
+      // 名字砸下來，台詞滑進來
+      const tx = I.ceo ? W * 0.42 : W * 0.4;
+      if (t > 0.12) {
+        const k = Math.min(1, (t - 0.12) / 0.16), sc = 2.2 - 1.2 * (1 - (1 - k) * (1 - k)), jit = k < 1 ? 0 : Math.sin(this.rt * 50) * (I.ceo ? 0.8 : 0.4);
+        x.globalAlpha = ease * k;
+        if (I.ct) this.blit(I.ct, tx, 58);
+        this.blit(I.cn, tx + jit, 80, sc);
+      }
+      if (t > 0.42 && I.cl) {
+        const k = Math.min(1, (t - 0.42) / 0.22);
+        x.globalAlpha = ease * k;
+        I.cl.forEach((c, i) => this.blit(c, tx + (1 - k) * 40 * (i ? -1 : 1), 112 + i * 24));
+      }
+      x.globalAlpha = 1;
+    }
+    // 進新關卡：先要這章與下一章的背景、怪物圖（第二週的圖不在開場載入）
+    prefetch() {
+      const key = this.bgKey(), num = parseInt(String(key).slice(2), 10) || 1;
+      ensureBg(key); if (num < D.CHAPTERS.length) ensureBg('bg' + (num + 1));
+      chapterKeys(num - 1).forEach(ensureEnemy);
+      const g = this.g, R = g.challenge && g.challenge.rules;
+      if (R) [R.bossRush, R.pool].forEach(a => { if (Array.isArray(a)) a.forEach(ensureEnemy); });
+    }
+    // 黑心公司篇氣氛：左右紅黑暗角（頂樓會像心跳一樣脈動）、偶爾從角落掃過來的監視器。畫在角色後面，角色照樣清楚
+    drawGloom(dt) {
+      if (!this.week2) { this.cam = null; return; }
+      const x = this.ctx, top = this.bgKey() === 'bg10';
+      let a = 0.85;
+      if (top) { const ph = (this.rt * 1.1) % 1; a = 0.7 + 0.3 * (Math.exp(-ph * 9) + 0.6 * Math.exp(-Math.max(0, ph - 0.18) * 9) * (ph > 0.18 ? 1 : 0)); }
+      x.globalAlpha = a;
+      const v = vignette();
+      x.drawImage(v, -this.ox - 2, -4, 74, H + 8);
+      this.tf(W - this.ox + 2, -4, 0, -1, 1); x.drawImage(v, 0, 0, 74, H + 8); this.base();
+      x.globalAlpha = 1;
+      // 監視器：每 5～9 秒從左上或右上探出來掃一下，紅點閃爍
+      this.camT = (this.camT ?? rand(3, 6)) - dt;
+      if (this.camT <= 0 && !this.cam) { this.cam = { t: 0, d: 2.6, right: this.g.mode === 'challenge' || Math.random() < 0.5 }; this.camT = rand(5, 9); }
+      const c = this.cam;
+      if (c) {
+        c.t += dt; const k = c.t / c.d; if (k >= 1) { this.cam = null; return; }
+        const inA = Math.min(1, c.t / 0.3, (c.d - c.t) / 0.3), cx = c.right ? W - 16 : 16, cy = 16 - (1 - inA) * 30;   // 挑戰中固定在右上，避開左上規則列
+        const sweep = Math.sin(k * Math.PI * 2) * 0.5, dir = c.right ? Math.PI * 0.72 : Math.PI * 0.28, an = dir + (c.right ? -sweep : sweep);
+        x.globalAlpha = 0.09 * inA; x.fillStyle = '#ff2a44';
+        x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(an - 0.22) * 260, cy + Math.sin(an - 0.22) * 260); x.lineTo(cx + Math.cos(an + 0.22) * 260, cy + Math.sin(an + 0.22) * 260); x.closePath(); x.fill();
+        x.globalAlpha = inA;
+        this.tf(cx, cy, an, c.right ? 1 : 1, 1);
+        x.fillStyle = '#1b1b22'; x.fillRect(-4, -5, 15, 10); x.fillStyle = '#3a3a46'; x.fillRect(9, -3.5, 4, 7);
+        x.fillStyle = Math.sin(this.rt * 12) > 0 ? '#ff2a44' : '#5a0a14'; x.beginPath(); x.arc(2, -1.5, 1.6, 0, 7); x.fill();
+        this.base();
+        if (Math.sin(this.rt * 6) > -0.2) this.blit(this.glyph('● REC', 6, '#ff3d55', '#200006', 2, 1), c.right ? W - 30 : 30, cy + 13);
+        x.globalAlpha = 1;
+      }
     }
     drawShadow(p) {
       if (!p || p.shW <= 0) return;
@@ -800,7 +1063,9 @@
       p.extra = 'hero';
     }
     poseEnemy(e, dt) {
-      const a = this.A(e), H0 = enemyH(e), im = e.t.img ? IMG[e.t.img] : IMG[e.k];
+      const a = this.A(e), H0 = enemyH(e);
+      let im = e.t.img ? IMG[e.t.img] : IMG[e.k];
+      if (!im) { ensureEnemy(e.k); im = enemyFallback(e); }
       a.hit = Math.max(0, a.hit - dt); a.lunge = Math.max(0, a.lunge - dt); a.spawn = Math.max(0, a.spawn - dt);
       spring(a, 'kb', 'kbv', 20, 0.55, dt); spring(a, 'sq', 'sqv', 32, 0.3, dt);
       a.kb = clamp(a.kb, -10, 22); a.sq = clamp(a.sq, -0.2, 0.2);
@@ -856,16 +1121,23 @@
         }
       }
       if (e && e.boss) {
-        const p2 = e.phase === 2;
-        x.globalAlpha = (this.cast && this.cast.e === e ? 0.55 + Math.sin(this.rt * 18) * 0.25 : (p2 ? 0.55 : 0.32) + Math.sin(this.rt * (p2 ? 7 : 4)) * 0.12);
-        const r = p.h * (p2 ? 0.78 : 0.62); x.drawImage(glow(p2 ? 'rgba(150,40,255,0.95)' : 'rgba(255,61,110,0.9)'), e.x - r, p.foot - p.h * 0.5 - r * 1.15, r * 2, r * 2.3);
+        const ph = e.phase || 1, p2 = ph >= 2, p3 = ph >= 3;
+        x.globalAlpha = (this.cast && this.cast.e === e ? 0.55 + Math.sin(this.rt * 18) * 0.25 : (p3 ? 0.7 : p2 ? 0.55 : 0.32) + Math.sin(this.rt * (p3 ? 10 : p2 ? 7 : 4)) * 0.12);
+        const r = p.h * (p3 ? 0.88 : p2 ? 0.78 : 0.62); x.drawImage(glow(p3 ? 'rgba(255,20,50,0.95)' : p2 ? 'rgba(150,40,255,0.95)' : 'rgba(255,61,110,0.9)'), e.x - r, p.foot - p.h * 0.5 - r * 1.15, r * 2, r * 2.3);
         x.globalAlpha = 1;
+
       } else if (e && e.elite) {
         x.globalAlpha = 0.5 + Math.sin(this.rt * 5) * 0.15;
         const r = p.h * 0.6; x.drawImage(glow('rgba(255,196,40,0.95)'), e.x - r, p.foot - p.h * 0.5 - r, r * 2, r * 2);
         x.globalAlpha = 1;
       }
       this.sprite(p.im, p.cx, p.foot, p.h, p);
+      if (e && e.boss && !e.dead && isCeo(e)) {   // 黑心董事長胸口那顆黑心：心跳般的紅光（疊在身上）
+        const ph2 = (this.rt * ((e.phase || 1) >= 3 ? 1.6 : 1.1)) % 1, hb = Math.exp(-ph2 * 8) + 0.6 * (ph2 > 0.2 ? Math.exp(-(ph2 - 0.2) * 8) : 0), rr = 12 + hb * 12;
+        x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.35 + 0.45 * Math.min(1, hb);
+        x.drawImage(glow('rgba(255,30,60,0.95)'), p.cx - rr, p.foot - p.h * 0.5 - rr, rr * 2, rr * 2);
+        x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+      }
       if (p.extra === 'zz') { this.blit(this.glyph('💤', 10, '#fff', null, 0, 1), h.x - 18, p.gy - 26 + Math.sin(this.rt * 3) * 3); return; }
       if (e) {
         const H0 = p.h;
@@ -895,6 +1167,20 @@
       const h = p.hero, k = p.hh / HERO_H, hx = p.shX ?? h.x;
       if (h.shield > 0) this.bubble(hx, p.gy - p.hh * 0.48, 30 * k, p.hh * 0.56, '140,200,255');
       const bw = 34 * k; this.bar(hx - bw / 2, p.gy + 6, bw, 4, h.hp / h.max, '#5ee07a');
+      if (h.dead) return;
+      const g = this.g, x = this.ctx;
+      // 加班鎖定中：身上兩條交叉鎖鏈＋頭上鎖頭（欄位名稱不確定，幾種都讀）
+      if (g.lockT > 0 || g.stunT > 0 || h.stun > 0 || h.lockT > 0 || h.locked) {
+        const cy = p.gy - p.hh * 0.45, w = 22 * k, hh = p.hh * 0.3, sh = Math.sin(this.rt * 30) * 0.6;
+        x.strokeStyle = '#aab0c4'; x.lineWidth = 1.6;
+        for (let i = 0; i <= 6; i++) { const q = i / 6; x.beginPath(); x.ellipse(hx - w + 2 * w * q + sh, cy - hh + 2 * hh * q, 2.6, 1.6, 0.6, 0, Math.PI * 2); x.ellipse(hx + w - 2 * w * q + sh, cy - hh + 2 * hh * q, 2.6, 1.6, -0.6, 0, Math.PI * 2); x.stroke(); }
+        this.blit(this.glyph('🔒', 9, '#fff', null, 0, 1), hx, p.gy - p.hh - 4 + Math.sin(this.rt * 4) * 1.5);
+      }
+      // 被詛咒：腳下紫光＋「攻↓」
+      if (g.curseT > 0 || h.curseT > 0) {
+        x.globalAlpha = 0.5 + Math.sin(this.rt * 5) * 0.15; x.drawImage(glow('rgba(150,60,230,0.9)'), hx - 26 * k, p.gy - 10, 52 * k, 18);
+        x.globalAlpha = 1; this.blit(this.glyph('攻↓', 7, '#e2c2ff', '#2a0040', 2.5, 1), hx + 20 * k, p.gy + 1);
+      }
     }
     bubble(cx, cy, rx, ry, rgb) {
       const x = this.ctx;
@@ -1043,6 +1329,21 @@
         else if (f.k === 'tap') {
           x.strokeStyle = '#fff3a0'; x.lineWidth = 3 * (1 - k) + 0.5; x.globalAlpha = 1 - k; x.beginPath(); x.arc(f.x, f.y, 4 + k * 16, 0, 7); x.stroke();
           this.blit(this.glyph('催！', 12, '#fff', '#a0522d', 3, 1.4), f.x, f.y - 10 - k * 14, k < 0.15 ? 0.7 + k * 3 : 1.15 - k * 0.15);
+        }
+        else if (f.k === 'chain') {   // 鎖鏈從外面收緊到身上
+          const r = f.r * (k < 0.4 ? 1.8 - k / 0.4 * 0.8 : 1), al = k < 0.7 ? 1 : (1 - k) / 0.3, n = 12, rot = k * 1.5;
+          x.globalAlpha = al; x.strokeStyle = '#c8c8d8'; x.lineWidth = 2;
+          for (let i = 0; i < n; i++) { const an = rot + i * Math.PI * 2 / n; x.beginPath(); x.ellipse(f.x + Math.cos(an) * r * 0.6, f.y + Math.sin(an) * r, 3.2, 2, an, 0, Math.PI * 2); x.stroke(); }
+        }
+        else if (f.k === 'suck') {   // 金色光球飛向頭目
+          const q = k * k, px = f.x + (f.tx - f.x) * q, py = f.y + (f.ty - f.y) * q - Math.sin(q * Math.PI) * 30;
+          x.globalAlpha = 0.8; x.drawImage(glow('rgba(255,220,80,0.95)'), px - 9, py - 9, 18, 18);
+          x.globalAlpha = 1; x.fillStyle = '#fff6c8'; x.beginPath(); x.arc(px, py, 2.6, 0, 7); x.fill();
+          if (f.t + dt >= f.d && !f.hit) { f.hit = true; this.burst(f.tx, f.ty, ['#ffe066', '#fff'], 4, 90, 'star'); }
+        }
+        else if (f.k === 'noTap') {
+          x.globalAlpha = 1 - k; x.strokeStyle = '#ff3d55'; x.lineWidth = 2.5; const r = 9 + k * 4;
+          x.beginPath(); x.arc(f.x, f.y, r, 0, 7); x.moveTo(f.x - r * 0.7, f.y - r * 0.7); x.lineTo(f.x + r * 0.7, f.y + r * 0.7); x.stroke();
         }
         else if (f.k === 'rankup') { x.globalAlpha = 1 - k * k; this.blit(this.glyph('升職！', 13, '#ffd23f', '#7a3e00', 3, 1), f.x, f.y - k * 30); x.strokeStyle = '#ffd23f'; x.lineWidth = 3; x.beginPath(); x.arc(f.x, f.y + 20, k * 50, 0, 7); x.stroke(); }
         else if (f.k === 'poof') {
@@ -1282,6 +1583,45 @@
         x.strokeStyle = '#b28dff'; x.lineWidth = 2; x.setLineDash([5, 4]);
         for (let i = 0; i < 3; i++) { x.globalAlpha = 0.5 + blink * 0.4; x.lineDashOffset = this.rt * 20 * (i % 2 ? 1 : -1); x.beginPath(); x.ellipse(c.e.x - 34 + i * 34, GROUND + 2, 15 * (0.5 + k * 0.5), 5 * (0.5 + k * 0.5), 0, 0, Math.PI * 2); x.stroke(); }
         x.setLineDash([]);
+      } else if (kind === 'stun' || kind === 'curse') {
+        // 加班鎖定／詛咒預警：每位同事腳下的圈慢慢收緊，頭上鎖頭（骷髏）閃爍
+        const col = kind === 'stun' ? '#ff2a44' : '#b05cff', ic = this.glyph(kind === 'stun' ? '🔒' : '💀', 10, '#fff', null, 0, 1);
+        x.strokeStyle = col; x.lineWidth = 2;
+        for (const h of this.g.heroes) {
+          if (!h.on || h.dead) continue;
+          const L = this.layout(h);
+          x.globalAlpha = 0.45 + blink * 0.5; x.beginPath(); x.ellipse(h.x, L.gy + 1, 28 - k * 10, 7 - k * 2.5, 0, 0, Math.PI * 2); x.stroke();
+          x.globalAlpha = 0.6 + blink * 0.4; this.blit(ic, h.x, L.gy - L.hh - 6 - blink * 3);
+        }
+      } else if (kind === 'drain') {
+        // 扣薪預警：頭目身邊金色漩渦，同事身上的充能光點被往頭目吸
+        const e = c.e, eh = enemyH(e), cy = e.y - eh * 0.5;
+        x.fillStyle = '#ffe066';
+        for (let i = 0; i < 6; i++) { const an = this.rt * 3 + i * 1.05, r = eh * 0.6 * (1 - ((this.rt * 0.8 + i / 6) % 1)); x.globalAlpha = 0.8; x.beginPath(); x.arc(e.x + Math.cos(an) * r, cy + Math.sin(an) * r * 0.6, 2.5, 0, 7); x.fill(); }
+        for (const h of this.g.heroes) {
+          if (!h.on || h.dead) continue;
+          const L = this.layout(h), hy = L.gy - L.hh * 0.5;
+          for (let j = 0; j < 2; j++) { const q = (this.rt * 0.9 + j * 0.5 + h.x * 0.003) % 1; x.globalAlpha = 0.7 * Math.sin(q * Math.PI); x.beginPath(); x.arc(h.x + (e.x - h.x) * q, hy + (cy - hy) * q - Math.sin(q * Math.PI) * 20, 2.2, 0, 7); x.fill(); }
+        }
+      } else if (kind === 'heal') {
+        // 頭目回血預警：綠圈＋往上飄的十字
+        const e = c.e, eh = enemyH(e);
+        x.globalAlpha = 0.4 + blink * 0.4; x.strokeStyle = '#7dff9a'; x.lineWidth = 2.5;
+        x.beginPath(); x.ellipse(e.x, GROUND + 2, eh * 0.4, 9, 0, 0, Math.PI * 2); x.stroke();
+        if (Math.random() < dt * 14) this.parts.push({ k: 'plus', x: e.x + rand(-eh * 0.35, eh * 0.35), y: GROUND - rand(0, eh * 0.6), vx: 0, vy: rand(-60, -30), t: 0, d: 0.8, r: rand(3, 4.5), c: '#7dff9a' });
+      } else if (kind !== 'shield') {
+        // 其他（新種類）技能：鎖定某位同事就在他身上畫紅色準心，沒有目標就在頭目身邊畫紅圈
+        const tg = (c.e.cast && c.e.cast.target) || c.target;
+        if (tg && tg.def && !tg.dead) {
+          const L = this.layout(tg), cy = L.gy - L.hh * 0.5, r = 34 - k * 10, an = this.rt * 2;
+          x.globalAlpha = 0.6 + blink * 0.4; x.strokeStyle = '#ff2a44'; x.lineWidth = 2;
+          x.beginPath(); x.arc(tg.x, cy, r, 0, 7); x.stroke();
+          for (let i = 0; i < 4; i++) { const a0 = an + i * Math.PI / 2; x.beginPath(); x.moveTo(tg.x + Math.cos(a0) * (r - 6), cy + Math.sin(a0) * (r - 6)); x.lineTo(tg.x + Math.cos(a0) * (r + 7), cy + Math.sin(a0) * (r + 7)); x.stroke(); }
+        } else {
+          const e = c.e, cy = e.y - enemyH(e) * 0.5;
+          x.globalAlpha = 0.5 + blink * 0.4; x.strokeStyle = '#ff2a44'; x.lineWidth = 3;
+          x.beginPath(); x.arc(e.x, cy, enemyH(e) * (0.55 + 0.15 * (1 - k)), 0, 7); x.stroke();
+        }
       } else if (kind === 'shield') {
         const e = c.e, cy = e.y - BOSS_H * 0.5;
         x.strokeStyle = '#8fd8ff'; x.lineWidth = 1.5;
@@ -1321,6 +1661,41 @@
       }
     }
     // 大招切入：任何同事都用全身圖（原本四人用攻擊姿勢或升職造型）；傳說金邊光芒、神話彩虹邊＋放射光
+    // 挑戰模式：左上規則小圖示；最後 10 秒畫面邊緣紅光。倒數數字、結算視窗是 C 的（DOM）
+    drawChallenge(dt) {
+      const g = this.g, x = this.ctx;
+      if (g.mode !== 'challenge' || !g.challenge) { this.chl = null; return; }
+      const c = g.challenge, R = c.rules || {}, s = this.scale;
+      const rush = Array.isArray(R.bossRush) && R.bossRush.length ? (g.chRounds > 0 ? `頭目連戰 ${g.chRound}/${g.chRounds}` : `頭目連戰 ${Math.min(R.bossRush.length, (g.wave || 0) + 1)}/${R.bossRush.length}`) : '';
+      if (!this.chl || this.chl.id !== c.id || this.chl.s !== s || this.chl.rush !== rush) {
+        const T = [];
+        const dn = R.dept && D.DEPTS && D.DEPTS[R.dept] ? D.DEPTS[R.dept].name : R.dept;
+        if (R.dept) { T.push(['  ' + dn + '限定', '#ffe9a8']); ensureImg('dept_' + R.dept, `art/ui/dept_${R.dept}.webp`); }
+        if (R.noUlt) T.push(['🚫 大招', '#ff9aa8']);
+        if (R.noTap) T.push(['🚫 催稿', '#ff9aa8']);
+        if (R.maxTeam) T.push([`👥 最多 ${R.maxTeam} 人`, '#cfe3ff']);
+        if (R.allElite) T.push(['★ 全員精英', '#ffd23f']);
+        if (R.enemyHp > 1) T.push([`怪物血量 ×${R.enemyHp}`, '#ffb3b3']);
+        if (R.enemyAtk > 1) T.push([`怪物攻擊 ×${R.enemyAtk}`, '#ffb3b3']);
+        if (rush) T.push(['👑 ' + rush, '#ffd23f']);
+        this.chl = { id: c.id, s, rush, chips: T.map(([t, col]) => ({ c: textCanvas(t, 8, col, '#10061a', 2.5, s, 1.2, 'bold'), dept: t.startsWith('  ') })) };
+      }
+      let y = 9;
+      for (const ch of this.chl.chips) {
+        const w = ch.c.ww + 6, h = 13;
+        x.globalAlpha = 0.72; x.fillStyle = '#12061c'; rrect(x, 4, y - h / 2, w, h, 6); x.fill();
+        x.globalAlpha = 1; this.blit(ch.c, 4 + w / 2, y);
+        if (ch.dept && IMG['dept_' + R.dept]) x.drawImage(IMG['dept_' + R.dept], 6, y - 5, 10, 10);
+        y += 15;
+      }
+      const lt = typeof g.chLeft === 'number' ? g.chLeft : g.cLeft, left = lt > 0 ? lt : null;   // B：chLeft，0＝不限時
+      // 倒數數字在 C 的上方條（DOM）；這裡只做最後 10 秒的畫面邊緣紅光脈動
+      if (left != null && isFinite(left) && left <= 10 && left > 0) {
+        const blink = 0.5 + 0.5 * Math.sin(this.rt * (left <= 5 ? 16 : 10));
+        x.globalAlpha = 0.3 + 0.45 * blink; const v = vignette(); x.drawImage(v, 0, 0, 70, H); x.save(); x.translate(W, 0); x.scale(-1, 1); x.drawImage(v, 0, 0, 70, H); x.restore();
+      }
+      x.globalAlpha = 1;
+    }
     drawCutin(dt) {
       const c = this.cutin, x = this.ctx; c.t += dt;
       const rar = c.rar || 0, d = rar >= 3 ? 1.15 : 1.0, k = c.t / d;

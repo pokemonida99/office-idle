@@ -4,9 +4,14 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
-  G.VERSION = 'v1.3.4';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
+  G.VERSION = 'v1.4.0';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
   const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });   // 原本四人（劇情、升職造型用）
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
+  const MAIN = D.MAIN || D.CHAPTERS.length * 10;          // 主線關數（v1.4：100），之後是加班模式
+  const WEEK_N = 50;                                       // 一週 5 章 × 10 關
+  const VILLAIN0 = { v_ceo: '黑心董事長', v_aide: '黑心特助' };
+  const villainName = id => (D.VILLAINS && D.VILLAINS[id] && D.VILLAINS[id].name) || VILLAIN0[id] || '？？？';
+  const bossOf = s => s < MAIN ? D.CHAPTERS[Math.min(D.CHAPTERS.length - 1, Math.floor(s / 10))].boss : null;
 
   // ---------- v1.3 同事（100 位）：名冊、稀有度、部門；B 的欄位還沒有時用預設值 ----------
   const HRAR0 = [{ name: '普通', key: 'N', color: '#9aa4b2' }, { name: '稀有', key: 'R', color: '#3d9bff' }, { name: '史詩', key: 'SR', color: '#b26bff' }, { name: '傳說', key: 'SSR', color: '#ffb020' }, { name: '神話', key: 'UR', color: '#ff4fd8' }];
@@ -163,6 +168,12 @@
     storyQ.push({ key, lines: D.STORY[key].slice(), after });
     if (storyQ.length === 1) nextLine();
   }
+  // 等目前排隊的劇情播完再做（沒有劇情就馬上做）
+  function afterStories(fn) {
+    const last = storyQ[storyQ.length - 1];
+    if (!last) { fn(); return; }
+    const prev = last.after; last.after = () => { prev && prev(); afterStories(fn); };
+  }
   function nextLine() {
     const cur = storyQ[0];
     if (!cur) { $('#story').hidden = true; paused = !$('#modal').hidden; return; }
@@ -171,13 +182,16 @@
     if (!line) { storyQ.shift(); cur.after && cur.after(); return nextLine(); }
     const [who, text] = line, dlg = $('#story .dlg');
     $('#story').hidden = false;
-    const hero = HERO[who];
+    const vil = /^v_/.test(who), hero = HERO[who] || (!vil && AH[who]);
     dlg.classList.toggle('sys', who === 'sys');
     dlg.classList.toggle('hasFace', !!hero);
-    const face = $('#story .face');
-    if (hero) { const pro = game.rank(game.s.heroes[who] || 0) >= 2; face.style.backgroundImage = `url(art/char/${pro ? 'pro_' : ''}${who}.webp)`; face.hidden = false; } else face.hidden = true;
-    $('#story .name').textContent = hero ? hero.name : '';
-    $('#story .name').hidden = !hero;
+    dlg.classList.toggle('vil', vil);
+    $('#story').classList.toggle('vil', vil);
+    const face = $('#story .face'), vf = $('#story .vface');
+    if (hero) { face.style.backgroundImage = `url(${bodyURL(who)})`; face.hidden = false; } else face.hidden = true;
+    if (vil) { if (vf._id !== who) { vf._id = who; vf.style.backgroundImage = `url(art/villain/${who}.webp)`; } vf.hidden = false; if (!cur.vil) { cur.vil = 1; G.Audio.play('villain'); } } else vf.hidden = true;
+    $('#story .name').textContent = hero ? hero.name : vil ? villainName(who) : '';
+    $('#story .name').hidden = !hero && !vil;
     const tx = $('#story .text'); tx.textContent = text;
     tx.animate && tx.animate([{ opacity: 0.4, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 160, easing: 'ease-out' });
   }
@@ -248,26 +262,37 @@
   }
   function updateTop() {
     const s = game.s, n = E.stageName(s.stage), boss = E.isBoss(s.stage);
-    setText(top.day, n.day); setText(top.code, n.code); setText(top.name, (s.farming ? '練功中・' : '') + n.title);
+    const chNow = inCh() && game.challenge;
+    setText(top.day, chNow ? '挑戰' : n.day); setText(top.code, chNow ? '挑戰關卡' : n.code); setText(top.name, chNow ? chNow.name : (s.farming ? '練功中・' : '') + n.title);
     css(top.day, '--d', String(Math.min(4, E.chapterOf(s.stage))));
     const wk = boss ? 'boss' : game.waveCount + ':' + game.wave;
     if (top.waves._k !== wk) {
       top.waves._k = wk;
       top.waves.innerHTML = boss ? '<i class="boss">BOSS</i>' : Array.from({ length: game.waveCount }, (_, i) => `<i class="${i < game.wave ? 'done' : i === game.wave ? 'cur' : ''}"></i>`).join('');
     }
-    hide(top.btnBoss, !s.farming);
-    hide(top.dps, s.farming);
+    hide(top.btnBoss, !s.farming || !!chNow);
+    hide(top.dps, s.farming && !chNow);
     hide(top.autoWrap, s.maxStage < 10);
     hide(top.autoBuyWrap, s.maxStage < AUTOBUY_AT);
     if (top.autoUlt.checked !== !!s.autoUlt) top.autoUlt.checked = !!s.autoUlt;
     if (top.autoBuy.checked !== !!s.autoBuy) top.autoBuy.checked = !!s.autoBuy;
-    if (!s.farming) setText(top.dps, '團隊輸出 ' + G.fmt(game.teamDps()) + '/秒');
+    if (!s.farming || chNow) setText(top.dps, '團隊輸出 ' + G.fmt(game.teamDps()) + '/秒');
     const chN = game.chestCount();
     hide(top.btnChest, !chN); if (chN) { setText(top.chestN, String(chN)); cls(top.btnChest, 'gold', s.chests.gold > 0); }
     const cn = game.cheerN ? game.cheerN() : 0;
     hide(top.cheer, !cn); if (cn) setText(top.cheer, '📣×' + (+game.cheerMul().toFixed(1)));
     // 解鎖自動升級（D.UNLOCKS 有 autobuy 的話交給 unlock 事件）
     if (s.maxStage >= AUTOBUY_AT && !seen('tut_autobuy') && !unlockOf('autobuy')) { mark('tut_autobuy'); celebrate('🤖', '解鎖「自動升級」', '打開後薪水會自動花在最划算的地方'); }
+    // 挑戰中：上方條換成「挑戰：xxx」＋離開
+    const ic = inCh();
+    hide(top.chBar, !ic); cls(top.stage, 'inCh', ic);
+    if (ic) {
+      const c = game.challenge || {};
+      setText(top.chName, '⚔️ 挑戰：' + (c.name || ''));
+      const timed = !!(c.rules && c.rules.time), left = !timed ? null : game.challengeLeft ? game.challengeLeft() : game.cLeft != null ? game.cLeft : null;
+      setText(top.chTime, left != null ? '⏱ ' + Math.max(0, Math.ceil(left)) + ' 秒' : '');
+      cls(top.chTime, 'warn', left != null && left <= 10);
+    }
     // 履歷與下一個目標
     const rcOn = isUnlocked('recruit');
     hide(top.resBox, !rcOn && !(s.resume > 0));
@@ -276,8 +301,11 @@
     goalT -= 0.1;
     if (goalT <= 0) {
       goalT = 0.5;
-      const g = game.nextGoal ? game.nextGoal() : null;
+      const g = !inCh() && game.nextGoal ? game.nextGoal() : null;
       hide(top.goal, !g);
+      // 地圖紅點：有新解鎖的挑戰
+      const chN = CHS().filter(chOpen).length;
+      hide(top.mapDot, chN <= (s.seen.mapCh || 0));
       if (g) {
         setText(top.goalTx, g.text + (g.need > 1 ? `（${G.fmt(Math.min(g.cur, g.need))}/${G.fmt(g.need)}）` : ''));
         bar(top.goalBar, g.need ? g.cur / g.need : 0);
@@ -287,6 +315,7 @@
     let ht = '';
     if (paused) ht = '';
     else if (rcOn && !seen('tut_recruit') && tab !== 'hero' && canRc(1)) ht = '📄 可以招募新同事了！點下方「同事」';
+    else if (!seen('tut_map') && !inCh() && CHS().some(chOpen)) ht = '🗺 挑戰關卡開放了！點左上角打開地圖';
     else if (game.bonuses && game.bonuses.length && !seen('tut_bonus')) ht = '🛵 外送來了！快點它拿獎勵';
     else if (chN && !seen('tut_open')) ht = '🎁 拿到寶箱了！點下方「寶箱」打開';
     else if (s.stats.taps < 8 && s.stats.play < 90 && game.phase === 'fight') ht = '👆 點怪物「催稿」一起打！';
@@ -312,8 +341,18 @@
     }).join('');
     team = [...box.querySelectorAll('.hc')].map((el, i) => ({ el, h: hs[i], id: hs[i].id, dept: deptOf(hdef(hs[i].id)), ring: el.querySelector('.ring'), face: el.querySelector('.face'), hp: el.querySelector('.hp i'), lv: el.querySelector('.lv') }));
   }
+  // 等 render.js 的頭目登場大字演完（G.Render.cur.intro 變 null）再做事；至少 0.3 秒、最多 5 秒
+  function afterIntro(fn) {
+    const t0 = performance.now();
+    const iv = setInterval(() => {
+      const busy = (rnd && rnd.intro) || (G.Render.cur && G.Render.cur.intro), dt = performance.now() - t0;
+      if ((dt > 300 && !busy) || dt > 5000) { clearInterval(iv); fn(); }
+    }, 100);
+  }
+  function noUltNow() { const c = inCh() && game.challenge; return !!(c && c.rules && c.rules.noUlt); }
   function tapTeam(id) {
     G.Audio.unlock();
+    if (noUltNow()) { toast('🚫 這個挑戰不能放大招'); return; }
     if (game.ult(id)) return;
     const d = hdef(id);
     if (!owned(id)) toast(`${d.name}：通過 ${E.stageName((d.joinAt || 1) - 1).code} 後加入`);
@@ -322,12 +361,14 @@
   function updateTeam() {
     const s = game.s;
     if (game.heroes.map(h => h.id).join(',') !== teamKey || (team[0] && team[0].h !== game.heroes[0])) buildTeam();
-    const firstReady = s.stats.ults < 1 && !s.autoUlt && !paused ? (game.heroes.find(h => game.canUlt(h)) || {}).id : null;
+    const noUlt = noUltNow();
+    const firstReady = noUlt ? null : s.stats.ults < 1 && !s.autoUlt && !paused ? (game.heroes.find(h => game.canUlt(h)) || {}).id : null;
     for (const t of team) {
       const id = t.id, h = t.h, lv = s.heroes[id] || 0;
       cls(t.el, 'locked', lv === 0);
       cls(t.el, 'dead', h.on && h.dead);
-      cls(t.el, 'ready', game.canUlt(h));
+      cls(t.el, 'ready', !noUlt && game.canUlt(h));
+      cls(t.el, 'noult', noUlt);
       cls(t.el, 'point', id === firstReady);
       cls(t.el, 'weak', weakSet.has(t.dept));
       css(t.ring, '--e', String(lv ? Math.floor(h.energy) : 0));
@@ -488,7 +529,7 @@
   // ---------- 同事分頁：招募、編隊、圖鑑 ----------
   const HV = {};                                   // 目前同事分頁的 DOM 參考
   const hf = { dept: 'all', rar: -1, own: false };  // 圖鑑篩選
-  function heroTabKey() { return [teamIds().join(','), teamSize(), ALL.filter(h => owned(h.id)).length, isUnlocked('recruit'), weakNow.join()].join('|'); }
+  function heroTabKey() { return [prepId, teamIds().join(','), teamSize(), ALL.filter(h => owned(h.id)).length, isUnlocked('recruit'), weakNow.join()].join('|'); }
   function pityRows() {
     if (game.pityInfo) return game.pityInfo() || [];
     const p = game.s.pity, R = D.RECRUIT || {};
@@ -501,6 +542,7 @@
   function buildHeroTab(p) {
     const s = game.s, rcOn = isUnlocked('recruit');
     builtKey = heroTabKey();
+    if (prepId) p.insertAdjacentHTML('beforeend', prepHTML());
     // 招募
     if (rcOn) {
       p.insertAdjacentHTML('beforeend', `<div class="rcBar"><div class="rc1"><b><img class="resIc" src="art/ui/resume.webp" data-fb="res" alt="">履歷 <span id="hvRes"></span></b><small id="hvPity"></small></div>
@@ -538,6 +580,7 @@
     $('#hvOwn').onchange = e => { hf.own = e.target.checked; G.Audio.play('tab'); fillGrid(); };
     p.querySelectorAll('.slot').forEach(b => b.onclick = () => pickSlot(+b.dataset.slot));
     Object.assign(HV, { res: $('#hvRes'), pity: $('#hvPity'), rc1: $('#hvRc1'), rc10: $('#hvRc10'), grid: $('#hvGrid') });
+    bindPrep();
     fillGrid();
   }
   function deptBonusHTML() {
@@ -695,11 +738,12 @@
     if (tab === 'staff') {
       const tip = $('#staffTip');
       if (tip) {
-        setText(tip, s.farming ? '💡 頭目太強了！按「一鍵升級」把薪水花完，大家會自動再挑戰頭目。'
+        const farm = s.farming && !inCh();
+        setText(tip, inCh() ? '💡 挑戰中也可以升級同事；打不過就按上方「離開」，隨時可以再挑戰。' : farm ? '💡 頭目太強了！按「一鍵升級」把薪水花完，大家會自動再挑戰頭目。'
           : s.maxStage < 3 ? '💡 打怪賺薪水，薪水夠就幫大家升級！按住按鈕可以連續升級。'
           : s.maxStage >= AUTOBUY_AT && !s.autoBuy ? '💡 懶得選？打開上面的「自動升級」，薪水會自動花在最划算的地方。'
           : `💡 Lv ${D.CURVE.rankAt[1]}、${D.CURVE.rankAt[2]}、${D.CURVE.rankAt[3]} 會升職，能力大幅提升；第二次升職會換新造型！`);
-        cls(tip, 'warn', s.farming);
+        cls(tip, 'warn', farm);
       }
       const one = $('#btnOne');
       if (one) { const can = anyAffordable(); cls(one, 'can', can); cls(one, 'point', tt === 'one'); }
@@ -941,11 +985,266 @@
     if (tab === 'hero' || tab === 'staff') buildPanel();
   }
 
+
+  // ---------- 挑戰關卡（B：D.CHALLENGES、startChallenge…；這裡只做介面）----------
+  const CHS = () => D.CHALLENGES || [];
+  const chById = id => CHS().find(c => c.id === id);
+  const inCh = () => game.mode === 'challenge';
+  const chStars = id => (game.s.challenges && game.s.challenges[id]) || 0;
+  const chOpen = c => game.s.maxStage >= (c.at || 0);
+  const dName = k => DEPT[k] ? DEPT[k].name : k;
+  const starStr = (n, max = 3) => '★'.repeat(n) + '<i>' + '★'.repeat(Math.max(0, max - n)) + '</i>';
+  const TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  function ruleLines(c) {
+    const r = c.rules || {}, L = [];
+    if (r.time) L.push(`⏱ 限時 <b>${r.time}</b> 秒`);
+    if (r.waves) L.push(`🌊 共 <b>${r.waves}</b> 波`);
+    if (r.enemyHp && r.enemyHp !== 1) L.push(`❤️ 敵人血量 <b>×${r.enemyHp}</b>`);
+    if (r.enemyAtk && r.enemyAtk !== 1) L.push(`💢 敵人攻擊 <b>×${r.enemyAtk}</b>`);
+    if (r.allElite) L.push('💀 全部都是<b>精英怪</b>');
+    if (r.bossRush) L.push(`👹 頭目連戰：${[].concat(r.bossRush).map(k => D.ENEMIES[k] ? D.ENEMIES[k].name : k).join(' → ')}`);
+    if (r.dept) L.push(`🏷 只能派 <b>${[].concat(r.dept).map(dName).join('、')}</b>`);
+    if (r.maxTeam) L.push(`👥 最多 <b>${r.maxTeam}</b> 人上場`);
+    if (r.noUlt) L.push('🚫 不能放<b>大招</b>');
+    if (r.noTap) L.push('🚫 不能點擊<b>催稿</b>');
+    return L;
+  }
+  function rewardText(rw, noGoldNum) {
+    if (!rw) return '';
+    const L = [];
+    if (rw.resume) L.push(`📄 履歷 ×${rw.resume}`);
+    if (rw.chests) { if (rw.chests.gold) L.push(`🎁 金寶箱 ×${rw.chests.gold}`); if (rw.chests.wood) L.push(`📦 木寶箱 ×${rw.chests.wood}`); }
+    if (rw.gold) L.push(noGoldNum ? '💰 一筆薪水' : `💰 薪水 ${G.fmt(rw.gold)}`);
+    const t = rw.treasure && TRE[rw.treasure.id || rw.treasure];
+    if (t) L.push(`💎 寶物「${t.name}」`);
+    return L.join('、');
+  }
+  // 編隊符不符合規則：B 有 challengeCheck 就用，沒有自己檢查部門與人數
+  function chCheck(c) {
+    if (game.challengeCheck) {
+      const t = game.challengeCheck(c);
+      if (t && c.rules && c.rules.dept && game.challengeTeam && !game.challengeTeam(c).length) return { text: `你還沒有${[].concat(c.rules.dept).map(dName).join('、')}的同事，先去招募吧`, dept: c.rules.dept, noHero: true };
+      return t;
+    }
+    const r = c.rules || {}, ids = teamIds();
+    if (r.dept) {
+      const dd = [].concat(r.dept), have = ALL.filter(h => owned(h.id) && dd.includes(deptOf(h))).length;
+      if (!have) return { text: `你還沒有${dd.map(dName).join('、')}的同事，先去招募吧`, dept: dd, noHero: true };
+      const bad = ids.filter(id => !dd.includes(deptOf(hdef(id))));
+      if (bad.length) return { text: `只能派${dd.map(dName).join('、')}的同事（隊上有 ${bad.length} 位不是）`, dept: dd };
+    }
+    if (r.maxTeam && ids.length > r.maxTeam) return { text: `最多 ${r.maxTeam} 人上場（現在 ${ids.length} 人）`, maxTeam: r.maxTeam };
+    return null;
+  }
+  const chProblem = c => { const p = chCheck(c); return !p ? null : typeof p === 'string' ? { text: p } : p.text ? p : { text: String(p.reason || p.error || '隊伍不符合規則') }; };
+  // 照規則自動排：只挑符合部門的人，同一人不重複，人數不超過上限
+  function ruleTeam(c) {
+    if (game.challengeTeam) return game.challengeTeam(c.id);
+    const r = c.rules || {}, dd = r.dept ? [].concat(r.dept) : null, n = Math.min(teamSize(), r.maxTeam || 9);
+    const L = ALL.filter(h => owned(h.id) && (!dd || dd.includes(deptOf(h))))
+      .sort((a, b) => rarOf(b) - rarOf(a) || starOf(b.id) - starOf(a.id) || (game.s.heroes[b.id] || 0) - (game.s.heroes[a.id] || 0));
+    const out = [];
+    for (const h of L) { if (out.length >= n) break; if (!out.some(x => sameBase(x, h.id))) out.push(h.id); }
+    return out;
+  }
+  function chInfo(id) {
+    G.Audio.play('tab');
+    const c = chById(id); if (!c) return;
+    const st = chStars(c.id), open = chOpen(c), prob = open ? chProblem(c) : null;
+    const starsTx = Array.isArray(c.stars) ? c.stars : c.starText || ['過關', '表現不錯', '完美過關'];
+    const first = c.reward && (c.reward.first || c.reward), again = c.reward && c.reward.again;
+    modal(`<div class="chIc ${open ? '' : 'lock'}"></div><h2>${c.name}${c.level ? `<span class="lvTag l${c.level}">${['', '簡單', '普通', '困難'][c.level]}</span>` : ''}</h2><p class="tstar tsBig">${starStr(st)}</p>
+      ${c.desc ? `<p>${c.desc}</p>` : ''}
+      <ul class="rules">${ruleLines(c).map(t => `<li>${t}</li>`).join('') || '<li>沒有特別限制</li>'}</ul>
+      <div class="chStars">${starsTx.slice(0, 3).map((t, i) => `<div class="${st > i ? 'on' : ''}"><b>${'★'.repeat(i + 1)}</b>${typeof t === 'string' ? t : t.text || ''}</div>`).join('')}</div>
+      <div class="chRew">${st ? `<b>重打獎勵</b>${rewardText(again, true) || '💰 少量薪水'}<small>首次通關獎勵已經領過了</small>` : `<b>首次通關</b>${rewardText(first, true) || '神秘獎勵'}`}${c.reward3 && st < 3 ? `<b class="r3">★★★ 第一次三星再送</b>${rewardText(c.reward3, true)}` : ''}</div>
+      ${!open ? `<p class="chWarn lock">🔒 ${unlockAtText({ at: c.at })}</p>` : prob ? `<p class="chWarn">⚠️ ${prob.text}${prob.noHero ? '' : '<small>按「自動換人出發」會暫時換成符合規則的隊伍，打完自動換回來</small>'}</p>` : ''}`,
+      !open ? [['關閉', true]] : prob ? (prob.noHero ? [['👥 去招募', true, () => chPrep(c.id)], ['關閉', false]]
+        : [['⚔️ 自動換人出發', true, () => chGo(c.id, true)], ['👥 自己編隊', false, () => chPrep(c.id)], ['關閉', false]]) : [['⚔️ 出發', true, () => chGo(c.id)], ['關閉', false]]);
+  }
+  // 帶去同事分頁準備：上方顯示規則、符不符合、自動排與出發
+  let prepId = null;
+  function chPrep(id) {
+    const c = chById(id); if (!c) return;
+    prepId = id;
+    closeMap();
+    const dd = c.rules && c.rules.dept; if (dd) { hf.dept = [].concat(dd)[0]; hf.own = true; }
+    if (tab === 'hero') buildPanel(); else switchTab('hero');
+    $('#panel').scrollTop = 0;
+  }
+  function prepHTML() {
+    const c = prepId && chById(prepId); if (!c) return '';
+    const prob = chProblem(c);
+    return `<div class="chPrep ${prob ? 'bad' : 'ok'}"><div class="cp1"><b>⚔️ 準備挑戰「${c.name}」</b><small>${ruleLines(c).filter(t => /🏷|👥/.test(t)).join('・') || ruleLines(c).slice(0, 2).join('・')}</small>
+      <span class="cpS">${prob ? '⚠️ ' + prob.text : '✅ 隊伍符合規則，可以出發了'}</span></div>
+      <div class="cpB"><button class="miniBtn" id="cpAuto">🤖 照規則自動排</button><button class="cpGo" id="cpGo" ${prob ? 'disabled' : ''}>出發</button><button class="cpX" id="cpX">取消</button></div></div>`;
+  }
+  function bindPrep() {
+    const a = $('#cpAuto'); if (!a) return;
+    const c = chById(prepId);
+    a.onclick = () => { const ids = ruleTeam(c); if (!ids.length) { toast('沒有符合規則的同事，先去招募吧'); return; } applyTeam(ids); };
+    $('#cpGo').onclick = () => chGo(prepId);
+    $('#cpX').onclick = () => { prepId = null; G.Audio.play('tab'); buildPanel(); };
+  }
+  function chGo(id, fix) {
+    G.Audio.unlock();
+    const c = chById(id); if (!c) return;
+    const prob = fix ? null : chProblem(c);
+    if (prob) { toast('⚠️ ' + prob.text); chPrep(id); return; }
+    if (typeof game.startChallenge !== 'function') { toast('挑戰關卡還在準備中'); return; }
+    let r; try { r = game.startChallenge(id, fix ? { fix: true } : undefined); } catch (er) { console.error(er); }
+    const err = typeof r === 'string' ? r : r && r !== true && !r.ok && (r.error || r.text || r.reason);
+    flushEvents();
+    if (err || !inCh()) { toast('⚠️ ' + (err || '現在不能開始挑戰')); if (err) chPrep(id); return; }
+    prepId = null; closeMap();
+    $('#modal').hidden = true; paused = storyQ.length > 0;
+    if (tab === 'hero') buildPanel();
+  }
+  let chPrev = 0;
+  function chStarted(e) {
+    const c = e.c || game.challenge || {};
+    chPrev = chStars(c.id);
+    G.Audio.play('boss');                       // 大字橫幅由 render.js 畫
+    topT = 0;
+  }
+  function chLeave() {
+    modal('<h2>離開挑戰？</h2><p>這次不算失敗也沒有獎勵，會回到主線原本的進度。挑戰隨時可以再打。</p>', [['繼續挑戰', true], ['離開', false, () => { if (game.leaveChallenge) game.leaveChallenge(); flushEvents(); toast('回到主線了'); }]]);
+  }
+  // 結算：星星一顆一顆亮、獎勵、首次通關
+  const CE = {}; let ceId = null;
+  function chEnded(e) {
+    const c = e.c || {}, win = !!e.win, n = win ? Math.max(1, e.stars || 1) : 0;
+    ceId = c.id;
+    if (e.reason === 'leave') { if (tab === 'hero' || tab === 'staff') buildPanelSoon(); return; }
+    paused = true;
+    CE.el.hidden = false; CE.el.className = 'overlay ' + (win ? 'win' : 'lose');
+    setText(CE.t, win ? (e.first ? '首次通關！' : '挑戰成功！') : '挑戰失敗…');
+    setText(CE.name, c.name || '');
+    CE.stars.forEach(x => x.classList.remove('on'));
+    const best = chStars(c.id), rw = rewardText(e.reward);
+    setHTML(CE.rew, win ? (rw ? `<b>${e.first ? '🎉 首次通關獎勵' : '重打獎勵'}</b>${rw}` : '') : `<b>差一點！</b>${loseTip(c)}`);
+    setText(CE.sub, win ? (n >= 3 ? '完美！三顆星' : !e.first && n > chPrev ? '新紀錄！' : `最佳紀錄 ${Math.max(e.best || best, n)} 星`) : e.reason === 'time' || (!e.reason && c.rules && c.rules.time) ? '時間到了' : '大家都倒下了');
+    CE.again.hidden = false;
+    G.Audio.play(win ? 'fanfare' : 'fail');
+    if (win) {
+      CE.stars.forEach((x, i) => setTimeout(() => { if (i < n) { x.classList.add('on'); G.Audio.play('star', i); } }, 450 + i * 380));
+      if (e.first || n >= 3) setTimeout(() => confetti(CE.box), 450 + n * 380);
+    }
+  }
+  function loseTip(c) {
+    const r = (c && c.rules) || {};
+    if (weakNow.length && !teamIds().some(id => weakSet.has(deptOf(hdef(id))))) return `這關的怪怕 ${weakText()}，換人打弱點 +50%`;
+    if (r.noUlt) return '不能放大招的關卡，挑攻擊高、會回血的同事比較穩';
+    if (r.time) return '時間不夠的話，多升級主力或換範圍攻擊的同事';
+    return '主線多練幾關、升級同事，再回來挑戰';
+  }
+  function closeChEnd() {
+    CE.el.hidden = true; paused = storyQ.length > 0 || !$('#modal').hidden || !MP.el.hidden;
+    if (tab === 'hero' || tab === 'staff') buildPanel();
+  }
+
+  // ---------- 地圖：兩週各 50 關沿路排，挑戰節點在旁邊 ----------
+  const MP = {};
+  function weekPath(w) {
+    const m = D.MAP && D.MAP['week' + (w + 1)];
+    if (m && m.path && m.path.length > 1) return m.path;
+    const P = []; for (let i = 0; i < 14; i++) P.push([0.5 + 0.28 * Math.sin(i * 1.15 + w * 2), 0.955 - i * 0.91 / 13]);
+    return P;
+  }
+  // 沿折線平均取 n 點（長度用實際比例算，ar＝高/寬）
+  function resample(P, n, ar) {
+    const L = [0];
+    for (let i = 1; i < P.length; i++) L.push(L[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], (P[i][1] - P[i - 1][1]) * ar));
+    const tot = L[L.length - 1] || 1, out = [];
+    for (let k = 0; k < n; k++) {
+      const d = tot * (0.012 + 0.976 * k / (n - 1)); let i = 1;   // 頭尾留一點邊，節點不要貼到圖邊
+      while (i < L.length - 1 && L[i] < d) i++;
+      const f = Math.max(0, Math.min(1, (d - L[i - 1]) / ((L[i] - L[i - 1]) || 1)));
+      out.push([P[i - 1][0] + (P[i][0] - P[i - 1][0]) * f, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * f]);
+    }
+    return out;
+  }
+  function buildMap() {
+    const s = game.s, ms = s.maxStage, here = inCh() ? -1 : s.stage, weeks = MAIN > WEEK_N ? [1, 0] : [0];
+    let html = '';
+    for (const w of weeks) {
+      const m = (D.MAP && D.MAP['week' + (w + 1)]) || {}, ar = m.ar || 2592 / 1080, base = w * WEEK_N;   // A 的地圖 1080×2592
+      const locked = w > 0 && ms < base;
+      html += `<section class="mapWeek w${w + 1} ${locked ? 'locked' : ''}" style="aspect-ratio:${(1 / ar).toFixed(4)}"><img class="mapImg" src="${m.img || `art/map/week${w + 1}.webp`}" data-fb="${TRANSPARENT}" alt="" decoding="async" draggable="false">`;
+      if (locked) {
+        html += `<div class="fog"><img class="vlogo" src="art/villain/logo.webp" data-fb="${TRANSPARENT}" alt="" draggable="false"><b>第二週・？？？</b><small>${unlockAtText({ at: base })}</small></div></section>`;
+        continue;
+      }
+      const P = weekPath(w), pts = P.length === WEEK_N ? P : resample(P, WEEK_N, ar), vb = `0 0 1000 ${Math.round(1000 * ar)}`;
+      const pl = a => a.map(p => `${(p[0] * 1000).toFixed(1)},${(p[1] * 1000 * ar).toFixed(1)}`).join(' ');
+      const doneN = Math.max(0, Math.min(WEEK_N, ms - base + 1));
+      html += `<svg class="road" viewBox="${vb}" preserveAspectRatio="none"><polyline class="r0" points="${pl(pts)}"/>${doneN > 1 ? `<polyline class="r1" points="${pl(pts.slice(0, doneN))}"/>` : ''}</svg>`;
+      html += `<div class="weekT">${w ? '第二週・黑心公司篇' : '第一週・我們的辦公室'}</div>`;
+      pts.forEach((p, i) => {
+        const st = base + i, boss = i % 10 === 9, x = (p[0] * 100).toFixed(2) + '%', y = (p[1] * 100).toFixed(2) + '%';
+        if (st >= MAIN) return;
+        if (i % 10 === 0) { const C = D.CHAPTERS[Math.floor(st / 10)]; if (C) html += `<span class="msign ${p[0] > 0.5 ? 'l' : 'r'}" style="top:${y}"><b>${C.day}</b>${C.title}</span>`; }
+        const cl = st < ms ? 'done' : st === ms ? 'cur' : 'lock';
+        let inner = String(i % 10 + 1);
+        if (boss) { const b = bossOf(st), E0 = D.ENEMIES[b] || {}; inner = `<img src="art/${E0.img ? 'char/' + E0.img : 'enemy/' + b}.webp" data-fb="${TRANSPARENT}" alt="" draggable="false">`; }
+        html += `<button class="mn ${cl} ${boss ? 'boss' : ''} ${st === here ? 'here' : ''}" data-s="${st}" style="left:${x};top:${y}">${inner}</button>`;
+        if (st === here) html += `<i class="hereMk" style="left:${x};top:${y};${faceStyle(teamIds()[0] || 'kui', 200)}"></i>`;
+      });
+      // 挑戰節點：放在解鎖那一關的旁邊（同一關多個就往上疊）
+      const stack = {};
+      CHS().forEach(c => {
+        const a = Math.max(0, Math.min(MAIN - 1, (c.at || 1) - 1));
+        if (a < base || a >= base + WEEK_N) return;
+        const p = pts[a - base], k = stack[a] = (stack[a] || 0) + 1, side = p[0] > 0.5 ? -1 : 1, fix = m.chal && m.chal[c.id];
+        const x = fix ? fix[0] : Math.max(0.08, Math.min(0.92, p[0] + side * 0.17)), y = fix ? fix[1] : Math.max(0.02, p[1] - (k - 1) * 0.032);
+        const open = chOpen(c), n = chStars(c.id);
+        html += `<button class="cn ${open ? '' : 'lock'} ${n >= 3 ? 'full' : ''}" data-c="${c.id}" style="left:${(x * 100).toFixed(2)}%;top:${(y * 100).toFixed(2)}%"><i class="${open ? 'ci' : ''}">${open ? '' : '🔒'}</i><em>${open ? starStr(n) : E.stageName(a).code}</em></button>`;
+      });
+      html += '</section>';
+    }
+    MP.inner.innerHTML = html;
+    fixBroken(MP.inner);
+    const done = CHS().reduce((a, c) => a + chStars(c.id), 0);
+    setText(MP.info, `主線 ${Math.min(ms, MAIN)} / ${MAIN}${CHS().length ? `・挑戰 ★${done} / ${CHS().length * 3}` : ''}`);
+  }
+  function openMap() {
+    G.Audio.unlock();
+    if (!MP.el.hidden) return;
+    mark('tut_map'); game.s.seen.mapCh = CHS().filter(chOpen).length;
+    buildMap();
+    MP.el.hidden = false; paused = true;
+    G.Audio.play('map');
+    // 捲到目前進度（只在打開時讀一次版面）
+    requestAnimationFrame(() => {
+      const t = MP.inner.querySelector('.mn.here') || MP.inner.querySelector('.mn.cur'); if (!t) return;
+      const sc = MP.scroll, r = t.getBoundingClientRect(), r0 = sc.getBoundingClientRect();
+      sc.scrollTop += r.top - r0.top - sc.clientHeight * 0.55;
+    });
+  }
+  function closeMap() {
+    if (!MP.el || MP.el.hidden) return;
+    MP.el.hidden = true; paused = storyQ.length > 0 || !$('#modal').hidden || !CE.el.hidden;
+  }
+  function mapNode(st) {
+    G.Audio.play('tab');
+    const ms = game.s.maxStage, n = E.stageName(st), boss = E.isBoss(st), b = boss && bossOf(st);
+    if (st > ms) { toast(`🔒 先通過 ${E.stageName(st - 1).code}「${E.stageName(st - 1).title}」`); return; }
+    if (inCh()) { toast('挑戰中，先按上方「離開」回到主線'); return; }
+    const isHere = st === game.s.stage;
+    modal(`<div class="sheetIc">${boss ? '👹' : st < ms ? '✅' : '🚩'}</div><h2>${n.code}　${n.title}</h2><p>${n.day}${boss && D.ENEMIES[b] ? `・頭目「${D.ENEMIES[b].name}」` : ''}</p>
+      <p class="small">${isHere ? '大家現在就在這一關。' : st < ms ? '已經通過了，可以回來練功賺薪水。' : '目前最遠的進度。'}</p>`,
+      isHere ? [['關閉', true]] : [[st < ms ? '回這關練功' : '前往這關', true, () => {
+        const ok = game.gotoStage ? game.gotoStage(st) : false; flushEvents();
+        if (ok === false) { toast('現在不能移動到這一關'); return; }
+        closeMap(); toast(`🚩 前往 ${n.code}「${n.title}」`);
+      }], ['關閉', false]]);
+  }
+
   // ---------- 打不過頭目 ----------
   function failSheet(e) {
     const s = game.s, boss = E.isBoss(e.s), key = 'fail_' + e.s, cnt = (s.seen[key] || 0) + 1;
     s.seen[key] = cnt;
-    const name = boss ? D.ENEMIES[e.s < 50 ? D.CHAPTERS[E.chapterOf(e.s)].boss : 'b_vivi'].name : '這一關';
+    const bk = boss && (bossOf(e.s) || 'b_vivi'), name = boss && D.ENEMIES[bk] ? D.ENEMIES[bk].name : '這一關';
     if (cnt > 2) { const cn = game.cheerN ? game.cheerN() : 0; toast(`💪 回去練功！${cn ? '同事打氣 ×' + (+game.cheerMul().toFixed(1)) + '，' : ''}升級後會自動再挑戰`); return; }
     const close = boss && e.left != null && e.left < 0.25 ? `差一點點！頭目只剩 <b>${Math.max(1, Math.round(e.left * 100))}%</b> 血。` : '';
     const why = close + (e.reason === 'time' ? `${boss ? '頭目戰限時 ' + Math.round(D.CURVE.bossTime + game.lootSum('time')) + ' 秒，' : ''}時間到還沒打完。` : '大家都被打倒了。');
@@ -1007,16 +1306,28 @@
         break;
       case 'stage': {
         const ch = E.chapterOf(e.s);
-        if (e.s < 50 && e.s % 10 === 0 && !game.s.farming) story('intro' + ch);
-        if (e.s < 50 && e.s % 10 === 4 && !game.s.farming) story('mid' + ch);
+        if (inCh() || e.challenge) break;
+        if (e.s < MAIN && e.s % 10 === 0 && !game.s.farming) story('intro' + ch);
+        if (e.s < MAIN && e.s % 10 === 4 && !game.s.farming) story('mid' + ch);
         break;
       }
-      case 'wave': if (e.boss) { A.play('boss'); const s = game.s.stage; if (s < 50) story('boss_' + D.CHAPTERS[E.chapterOf(s)].boss); } break;
+      case 'wave': if (e.boss) {
+        A.play('boss');
+        // 頭目登場：render.js 先演「變暗＋紅色大字」約 2 秒（黑心董事長 3 秒），劇情對話框等它演完再跳
+        const s = game.s.stage, b = bossOf(s);
+        if (s < MAIN && !inCh() && !e.challenge && D.STORY['boss_' + b] && !seen('boss_' + b)) afterIntro(() => { if (game.s.stage === s && !inCh()) story('boss_' + b); });
+      } break;
       case 'clear':
+        if (inCh()) break;
         if (e.boss) celebrate('🏆', '打倒頭目！', E.stageName(e.s).title);
-        if (e.boss && e.s < 50) story('win_' + D.CHAPTERS[E.chapterOf(e.s)].boss, e.s === 49 ? ending : null);
+        if (e.boss && e.s < MAIN) story('win_' + bossOf(e.s));
         break;
-      case 'fail': A.play('fail'); pendingFail = e; break;
+      case 'fail': A.play('fail'); if (!inCh() && !e.challenge) pendingFail = e; break;
+      case 'challengeStart': chStarted(e); break;
+      case 'migrate': story('migrate'); break;
+      case 'ending': afterStories(() => e.week === 2 ? story('ending2', () => ending(2)) : ending(1)); break;
+      case 'tapBlocked': A.play('hurt'); break;
+      case 'challengeEnd': chEnded(e); break;
       case 'cheer':
         if (e.why === 'calm') break;
         if (e.why === 'fail' && pendingFail) break;            // 失敗說明裡會寫
@@ -1079,11 +1390,13 @@
     top.resPlus.classList.remove('go'); void top.resPlus.offsetWidth; top.resPlus.classList.add('go');
   }   // 其他分頁 updatePanel 會自己更新
 
-  function ending() {
-    const s = game.s;
-    modal(`<h2>🎉 週五 18:00 準時下班！</h2><p>小葵、小米、阿傑和 Vivi 老闆打倒了「下班前的新需求」。這一週辛苦了！</p>
-      <div class="stat"><div>上班時間<b>${Math.round(s.stats.play / 60)} 分</b></div><div>打倒工作怪<b>${G.fmt(s.stats.kills)}</b></div><div>大招<b>${s.stats.ults} 次</b></div><div>催稿<b>${G.fmt(s.stats.taps)} 次</b></div></div>
-      <p>接下來是「加班模式」，關卡無限延伸，想玩多久就玩多久。</p>`, [['繼續加班', true]]);
+  function ending(week = 1) {
+    const s = game.s, more = week === 1 && MAIN > WEEK_N;
+    const stat = `<div class="stat"><div>上班時間<b>${Math.round(s.stats.play / 60)} 分</b></div><div>打倒工作怪<b>${G.fmt(s.stats.kills)}</b></div><div>大招<b>${s.stats.ults} 次</b></div><div>催稿<b>${G.fmt(s.stats.taps)} 次</b></div></div>`;
+    if (week === 1) modal(`<h2>🎉 週五 18:00 準時下班！</h2><p>大家打倒了「下班前的新需求」。這一週辛苦了！</p>${stat}
+      <p>${more ? '……不過，下週一的信箱裡好像躺著一封奇怪的信。' : '接下來是「加班模式」，關卡無限延伸，想玩多久就玩多久。'}</p>`, [[more ? '迎接下週一' : '繼續加班', true, () => { if (more) story('nextweek'); }]]);
+    else modal(`<div class="sheetIc">🏢💥</div><h2>黑心公司倒了！</h2><p>董事長的黑心被打碎，被困住的黑心員工也都自由了。大家又可以準時下班了！</p>${stat}
+      <p>收集了 <b>${ALL.filter(h => owned(h.id)).length} / ${ALL.length}</b> 位同事。接下來是「加班模式」，想玩多久就玩多久。</p>`, [['繼續加班', true]]);
   }
   function modal(html, btns) {
     paused = true;
@@ -1128,8 +1441,9 @@
     if (vis('#title') && !vis('#modal')) { if (k === 'Enter' || k === ' ') { e.preventDefault(); $('#btnStart').click(); } return; }
     if (vis('#story')) { if (k === ' ' || k === 'Enter') { e.preventDefault(); nextLine(); } else if (k === 'Escape') skipStory(); return; }
     if (k === 'Escape') {
-      for (const sel of ['#rcSkip', '#rcOk', '#cClose']) { const b = $(sel); if (b && b.offsetParent) { b.click(); return; } }
+      for (const sel of ['#rcSkip', '#rcOk', '#cClose', '#ceOk']) { const b = $(sel); if (b && b.offsetParent) { b.click(); return; } }
       if (vis('#modal')) { const b = $('#modal').querySelector('.btns button.pri') || $('#modal').querySelector('.btns button'); if (b) b.click(); }
+      else if (vis('#mapUI')) closeMap();
       return;
     }
     if (paused) return;
@@ -1138,7 +1452,8 @@
       const t = game.target && game.target(); if (!t) return;
       const y = t.y - 40, r = game.tap(t.x, y); rnd.tapFx(t.x, y); if (r) G.Audio.play('tap', game.combo || 0);
     } else if (/^[1-5]$/.test(k)) {
-      const id = (game.s.team || [])[+k - 1]; if (id) game.ult(id);
+      const id = (game.s.team || [])[+k - 1]; if (!id) return;
+      if (noUltNow()) toast('🚫 這個挑戰不能放大招'); else game.ult(id);
     }
   }
 
@@ -1197,12 +1512,24 @@
     const saved = loadSave();
     game = G.__game = new E.Game(saved);
     refreshAll();
-    const bootEv = game.events.filter(e => e.gift || e.why === 'gift');   // 舊存檔補發履歷：開始上班後再提示
+    const bootEv = game.events.filter(e => e.gift || e.why === 'gift' || e.type === 'migrate');   // 舊存檔補發履歷：開始上班後再提示
     game.events.length = 0;
     goldShown = game.s.gold;
     rnd = new G.Render.Renderer($('#cv'), game);
     Object.assign(top, { day: $('#stDay'), code: $('#stCode'), name: $('#stName'), waves: $('#waves'), gold: $('#gold'), goldBox: $('#goldBox'), btnBoss: $('#btnBoss'), dps: $('#dps'), autoWrap: $('#autoWrap'), autoBuyWrap: $('#autoBuyWrap'), autoUlt: $('#autoUlt'), autoBuy: $('#autoBuy'), hint: $('#hint'), btnChest: $('#btnChest'), chestN: $('#chestN'), cheer: $('#cheer'), buff: { gold: $('#bfGold'), aspd: $('#bfAspd'), atk: $('#bfAtk') }, resBox: $('#resBox'), resume: $('#resume'), resPlus: $('#resPlus'), goal: $('#goal'), goalTx: $('#goalTx'), goalBar: $('#goalBar') });
     Object.assign(tabs, { staffDot: $('#staffDot'), officeDot: $('#officeDot'), questDot: $('#questDot'), lootDot: $('#lootDot'), staff: $('#tabs [data-tab="staff"]'), heroDot: $('#heroDot'), hero: $('#tabs [data-tab="hero"]') });
+    Object.assign(top, { chBar: $('#chBar'), chName: $('#chName'), chTime: $('#chTime'), stage: $('#top .stage'), mapDot: $('#mapDot') });
+    Object.assign(MP, { el: $('#mapUI'), scroll: $('#mapUI .mapScroll'), inner: $('#mapUI .mapInner'), info: $('#mapInfo') });
+    Object.assign(CE, { el: $('#chEnd'), box: $('#chEnd .ceBox'), t: $('#chEnd .ceT'), name: $('#chEnd .ceName'), sub: $('#chEnd .ceSub'), rew: $('#chEnd .ceRew'), stars: [...document.querySelectorAll('#chEnd .ceStars i')], again: $('#ceAgain') });
+    top.stage.addEventListener('click', openMap);
+    $('#mapClose').onclick = closeMap;
+    MP.el.addEventListener('click', e => { if (e.target === MP.el) closeMap(); });   // 桌面版：點地圖外面關閉
+    MP.inner.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.c) chInfo(b.dataset.c); else if (b.dataset.s) mapNode(+b.dataset.s); });
+    $('#chLeave').onclick = chLeave;
+    $('#ceOk').onclick = closeChEnd;
+    $('#ceMap').onclick = () => { closeChEnd(); openMap(); };
+    $('#ceAgain').onclick = () => { closeChEnd(); if (ceId) chInfo(ceId); };
+    CE.el.addEventListener('click', e => { if (!e.target.closest('.ceBox')) closeChEnd(); });
     Object.assign(RC, { el: $('#rcUI'), stage: $('#rcUI .rcStage'), env: $('#rcUI .rcEnv'), one: $('#rcUI .rcOne'), grid: $('#rcUI .rcGrid'), cut: $('#rcUI .rcCut'), flash: $('#rcUI .rcFlash'), info: $('#rcUI .rcInfo'), btns: $('#rcUI .btns'), again: $('#rcAgain'), skip: $('#rcSkip') });
     RC.el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; if (rcWake) { G.Audio.play('tab'); rcWake(); } });
     RC.skip.addEventListener('pointerdown', e => { e.stopPropagation(); rcSkip = true; RC.cut.hidden = true; if (rcWake) rcWake(); });

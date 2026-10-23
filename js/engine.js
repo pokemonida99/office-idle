@@ -7,13 +7,15 @@
 
   function newSave() {
     return {
-      v: 1, stage: 0, maxStage: 0, gold: 0, farming: false, autoUlt: false, autoBoss: true, autoBuy: false,
+      v: 2, stage: 0, maxStage: 0, gold: 0, farming: false, autoUlt: false, autoBoss: true, autoBuy: false,
       heroes: { mi: 1, kui: 1, jie: 0, vivi: 0 }, office: {}, perk: {}, tapLv: 1, loot: [],
       treasures: {}, chests: { wood: 0, gold: 0 },
       stats: { kills: 0, ults: 0, taps: 0, play: 0, bonus: 0, chests: 0, pulls: 0 }, quests: {}, seen: {}, cleared: false,
       cheer: { n: 0, calm: 0 },
       // v1.3 同事收集：team 上場、stars 星數、resume 履歷、pity 保底計數、unlocked 已解鎖的階梯
-      team: ['mi', 'kui'], stars: { mi: 1, kui: 1 }, resume: 0, pity: { ssr: 0, ur: 0 }, unlocked: {}
+      team: ['mi', 'kui'], stars: { mi: 1, kui: 1 }, resume: 0, pity: { ssr: 0, ur: 0 }, unlocked: {},
+      // v1.4：challenges 挑戰關卡最佳星數、cleared2 第二週通關
+      challenges: {}, cleared2: false
     };
   }
   // 舊存檔（v1）缺的欄位補上預設值
@@ -25,7 +27,7 @@
       office: s.office || {}, perk: s.perk || {}, loot: s.loot || [], quests: s.quests || {}, seen: s.seen || {},
       cheer: Object.assign(base.cheer, s.cheer), treasures: s.treasures || {}, chests: Object.assign(base.chests, s.chests),
       stars: Object.assign({}, s.stars), pity: Object.assign(base.pity, s.pity), unlocked: Object.assign({}, s.unlocked),
-      resume: s.resume || 0
+      resume: s.resume || 0, challenges: Object.assign({}, s.challenges)
     });
     // v1.1 以前的頭目戰利品 → 同名神器
     for (const id of out.loot) if (D.TREASURES.some(t => t.id === id) && !out.treasures[id]) out.treasures[id] = 1;
@@ -34,24 +36,34 @@
     const team = Array.isArray(s.team) ? s.team : D.ORDER;
     out.team = team.filter((id, i) => out.heroes[id] > 0 && team.indexOf(id) === i);
     if (!out.team.length) out.team = D.ORDER.filter(id => out.heroes[id] > 0);
-    if (!Array.isArray(s.team)) for (const u of D.UNLOCKS) if (u.at <= out.maxStage) out.unlocked[u.key] = 1;
+    if (!Array.isArray(s.team)) for (const u of D.UNLOCKS) if (u.at <= out.maxStage && !NEW14.includes(u.key)) out.unlocked[u.key] = 1;
+    // v1.3 以前（v < 2）：加班模式（第 51 關以後）改成第二週 → 進度設成第 51 關，能力與收藏都保留
+    if ((s.v || 1) < 2 && out.maxStage > D.WEEK) { out.maxStage = D.WEEK; out.stage = D.WEEK; out.farming = false; }
+    if (out.stage > out.maxStage) out.stage = out.maxStage;
+    out.v = 2;
     return out;
   }
 
-  const chapterOf = s => Math.min(Math.floor(s / 10), 4);
-  const BOSS_ROT = ['b_client', 'b_meeting', 'b_report', 'b_final', 'b_vivi'];   // 加班模式頭目輪替
+  const NEW14 = ['challenge', 'week2'];   // v1.4 新增的解鎖：舊存檔載入時也要跳通知
+  const MAIN = D.MAIN || 100, WEEK = D.WEEK || 50;
+  const chapterOf = s => Math.min(Math.floor(s / 10), D.CHAPTERS.length - 1);
+  const BOSS_ROT = D.CHAPTERS.map(c => c.boss);   // 加班模式（第 101 關起）十個頭目輪流
+  const otBoss = s => BOSS_ROT[Math.floor((s - MAIN) / 10) % BOSS_ROT.length];
+  const weekOf = s => s < WEEK ? 1 : s < MAIN ? 2 : 0;   // 0 = 加班模式
   const SCARE_MUL = (D.THEME && D.THEME[3] && D.THEME[3].scare) ? D.THEME[3].scare.mul : 1.25;
   const isBoss = s => s % 10 === 9;
   function stageName(s) {
-    if (s >= 50) return { day: '加班', title: `加班第 ${s - 49} 關`, code: `OT-${s - 49}` };
+    if (s >= MAIN) return { day: '加班', title: `加班第 ${s - MAIN + 1} 關`, code: `OT-${s - MAIN + 1}`, week: 0 };
     const ch = D.CHAPTERS[chapterOf(s)];
-    return { day: ch.day, title: ch.names[s % 10], code: `${chapterOf(s) + 1}-${s % 10 + 1}` };
+    return { day: ch.day, title: ch.names[s % 10], code: `${chapterOf(s) + 1}-${s % 10 + 1}`, week: weekOf(s) };
   }
 
   class Game {
     constructor(save) {
       if (D.syncRoster) D.syncRoster();
       const old = !!save && !Array.isArray(save.team);
+      const otMax = save && (save.v || 1) < 2 && save.maxStage > WEEK ? save.maxStage : 0;   // 原本在加班模式的舊存檔
+      this.mode = 'main'; this.challenge = null;
       this.s = fixSave(save);
       this.events = [];
       this.heroes = [];
@@ -62,8 +74,9 @@
       this.talkT = 3; this.quietT = 0; this.sayQ = [];
       this.autoT = 0;
       this.checkJoin(true);
-      this.checkUnlocks(true);
+      this.checkUnlocks(true, NEW14);
       this.buildTeam();
+      if (otMax) this.emit({ type: 'migrate', from: otMax, to: WEEK });   // 介面跳 STORY.migrate，接著第 51 關開場會跳 intro5
       // 舊存檔第一次進 v1.3：招募已經開放的話，補發履歷（10 份 + 已過關數）
       if (old && this.s.maxStage >= D.RECRUIT.unlock) {
         this.giveResume(D.RECRUIT.first + Math.min(this.s.maxStage, 50), null, 'gift');
@@ -113,7 +126,7 @@
     hpMul() { return (1 + this.officeBonus('chair') + this.tSum('hp')) * this.cheerMul(); }
     goldMul() {
       let m = 1 + this.officeBonus('bonus') + (this.s.heroes.vivi > 0 ? 0.25 : 0) + this.tSum('gold');
-      if (this.s.stage >= 50) m += this.tSum('ot');
+      if (this.s.stage >= MAIN) m += this.tSum('ot');
       return m * (1 + this.cheerN() * D.CHEER.gold);
     }
     aspdBase() { return 1 + this.officeBonus('keyboard') + this.tSum('aspd'); }
@@ -124,7 +137,17 @@
     bossTime() { return C.bossTime + this.tSum('time'); }
     buffMul(k) { return this.buffs[k].t > 0 ? this.buffs[k].mul : 1; }
     // 戰鬥中暫時的攻擊倍率（畫大餅、外送）
-    fightAtkMul() { return (this.buffT > 0 ? this.buffAtk : 1) * this.buffMul('atk'); }
+    fightAtkMul() { return (this.buffT > 0 ? this.buffAtk : 1) * this.buffMul('atk') * (this.curseT > 0 ? this.curseMul : 1); }
+    // 目前在打的關卡編號（挑戰中是挑戰的強度關）與章節（背景、怪物池用）
+    curStage() { return this.challenge ? this.challenge.s : this.s.stage; }
+    curChapter() { return this.challenge ? this.challenge.ch : chapterOf(this.s.stage); }
+    // 戰場背景（挑戰用挑戰章節、加班模式十章輪流）與是不是黑心公司篇（紅黑氣氛）
+    bgKey() { const s = this.curStage(); return D.CHAPTERS[!this.challenge && s >= MAIN ? Math.floor((s - MAIN) / 10) % D.CHAPTERS.length : this.curChapter()].bg; }
+    week2() { const s = this.curStage(); return this.challenge ? D.CHAPTERS[this.challenge.ch].week === 2 : s >= WEEK && s < MAIN || (s >= MAIN && D.CHAPTERS[Math.floor((s - MAIN) / 10) % D.CHAPTERS.length].week === 2); }
+    // 挑戰的畫面用：限時剩幾秒（0＝沒限時）、頭目連戰第幾隻／共幾隻
+    get chLeft() { return this.challenge ? this.cLeft : 0; }
+    get chRound() { return this.challenge && this.challenge.rules.bossRush ? this.wave + 1 : 0; }
+    get chRounds() { return this.challenge && this.challenge.rules.bossRush ? this.challenge.rules.bossRush.length : 0; }
 
     // ---------- 同事 ----------
     heroDef(id) { return D.HERO_BY[id] || null; }
@@ -192,7 +215,8 @@
     }
     teamChanged() { this.buildTeam(); this.emit({ type: 'teamChange', team: this.s.team.slice() }); }
     // 換隊伍：ids 依序取已擁有的人，最多 teamSize() 人；站位自動依職業排
-    setTeam(ids) {
+    setTeam(ids, force) {
+      if (this.challenge && !force) return false;   // 挑戰中不能換人
       const size = this.teamSize(), out = [];
       for (const id of ids || []) if (this.owned(id) && this.heroDef(id) && !out.some(x => this.sameBase(x, id)) && out.length < size) out.push(id);
       if (!out.length) return false;
@@ -218,12 +242,12 @@
     teamMul() { return this._teamMul || 1; }
     // 某關的敵人弱點分布：{ w: { 部門: 比例 }, boss: 頭目弱點或 null }
     stageWeak(s = this.s.stage) {
-      const ch = s >= 50 ? null : D.CHAPTERS[chapterOf(s)];
+      const ch = s >= MAIN ? null : D.CHAPTERS[chapterOf(s)];
       const pool = ch ? ch.pool : Object.keys(D.ENEMIES).filter(k => !D.ENEMIES[k].boss);
       const w = {}, add = (k, x) => { const d = D.ENEMIES[k].weak; if (d) w[d] = (w[d] || 0) + x; };
       let boss = null;
       if (isBoss(s)) {
-        const bid = ch ? ch.boss : BOSS_ROT[Math.floor((s - 50) / 10) % 5];
+        const bid = ch ? ch.boss : otBoss(s);
         boss = D.ENEMIES[bid].weak || null;
         add(bid, 0.75); add(pool[0], 0.125); add(pool[1], 0.125);
       } else pool.forEach(k => add(k, 1 / pool.length));
@@ -263,11 +287,13 @@
     }
     // 自動編隊：照戰力、這關的部門弱點、職業平衡挑人（貪婪挑 + 換人改良）。apply = false 只回傳不換
     // sticky = true（自動升級每關呼叫的那種）：新隊伍要明顯比較強才換；玩家按「自動編隊」不加這個，一定換成最佳
-    autoTeam(apply = true, sticky = false) {
-      const wk = this.stageWeak(this.s.stage).w;
-      const ids = this.ownedIds(), V = {};
+    // opts（挑戰用）：{ dept 只挑某部門, max 最多幾人, wk 弱點分布 }
+    autoTeam(apply = true, sticky = false, opts) {
+      if (this.challenge && apply) return this.s.team.slice();
+      const wk = opts && opts.wk || this.stageWeak(this.s.stage).w;
+      const ids = this.ownedIds().filter(id => !(opts && opts.dept) || this.heroDef(id).dept === opts.dept), V = {};
       for (const id of ids) V[id] = this.heroVals(id, wk);
-      const size = Math.min(this.teamSize(), new Set(ids.map(id => this.baseOf(id))).size), sc = t => this.teamScore(t.map(id => V[id]));
+      const size = Math.min(opts && opts.max || 9, this.teamSize(), new Set(ids.map(id => this.baseOf(id))).size), sc = t => this.teamScore(t.map(id => V[id]));
       const team = [];
       while (team.length < size) {
         let best = null, bs = -1;
@@ -293,6 +319,7 @@
     }
     // 隊伍有空位就把板凳上最適合的人補上去（新同事、新格子、新加入）
     fillTeam() {
+      if (this.challenge) return false;
       const size = this.teamSize(); let added = false;
       const wk = this.stageWeak(this.s.stage).w;
       while (this.s.team.length < size) {
@@ -371,12 +398,12 @@
     }
 
     // ---------- 解鎖階梯與下一個目標 ----------
-    checkUnlocks(silent) {
+    checkUnlocks(silent, notify) {
       let any = false;
       for (const u of D.UNLOCKS) {
         if (u.at > this.s.maxStage || this.s.unlocked[u.key]) continue;
         this.s.unlocked[u.key] = 1; any = true;
-        if (silent) continue;
+        if (silent) { if (notify && notify.includes(u.key)) this.emit({ type: 'unlock', u }); continue; }
         this.emit({ type: 'unlock', u });
         if (u.key === 'recruit') this.giveResume(D.RECRUIT.first, null, 'unlock');
       }
@@ -452,6 +479,8 @@
         case 'rank2': return [this.ownedIds().filter(id => this.rank(s.heroes[id]) >= 2).length, q.n];
         case 'lvsum': return [s.team.reduce((a, id) => a + (s.heroes[id] || 0), 0), q.n];
         case 'pulls': return [s.stats.pulls || 0, q.n];
+        case 'chal': return [Object.values(s.challenges).filter(x => x > 0).length, q.n];
+        case 'cstars': return [Object.values(s.challenges).reduce((a, b) => a + b, 0), q.n];
         case 'heroes': return [this.ownedCount(), q.n];
         case 'star': return [Math.max(0, ...this.ownedIds().map(id => this.star(id))), q.n];
         case 'dept': { const c = {}; s.team.forEach(id => { const d = this.heroDef(id); if (d) c[d.dept] = (c[d.dept] || 0) + 1; }); return [Math.max(0, ...Object.values(c)), q.n]; }
@@ -486,51 +515,59 @@
       });
     }
     startStage() {
-      const s = this.s.stage;
-      this.wave = 0; this.waveCount = isBoss(s) ? 1 : (s >= 20 ? 4 : 3);
+      const c = this.challenge, r = c && c.rules, s = this.curStage();
+      this.wave = 0;
+      this.waveCount = c ? (r.bossRush ? r.bossRush.length : r.waves || 3) : isBoss(s) ? 1 : (s >= 20 ? 4 : 3);
       this.enemies = []; this.shots = []; this.spawnQ = [];
       this.phase = 'walk'; this.phaseT = 0.9;
-      this.bossT = 0; this.buffT = 0; this.stageT = 0;
-      if (this.s.autoBuy && this.s.maxStage >= D.AUTOBUY_AT) this.autoTeam(true, true);   // 自動編隊：每關照弱點重排
+      this.bossT = 0; this.buffT = 0; this.stageT = 0; this.curseT = 0; this.curseMul = 1;
+      this.cLeft = c && r.time ? r.time : 0;   // 挑戰限時（只算戰鬥中的時間）
+      if (!c && this.s.autoBuy && this.s.maxStage >= D.AUTOBUY_AT) this.autoTeam(true, true);   // 自動編隊：每關照弱點重排
       const X = D.TEAM.x[Math.max(3, Math.min(5, this.heroes.length))];
       this.heroes.forEach((h, i) => {
-        h.on = true; h.slot = i; h.x = X[i]; h.dead = false; h.max = this.heroHp(h.id); h.hp = h.max; h.shield = 0; h.cd = 0.3 + Math.random() * 0.4; h.readyT = 0;
+        h.on = true; h.slot = i; h.x = X[i]; h.dead = false; h.max = this.heroHp(h.id); h.hp = h.max; h.shield = 0; h.cd = 0.3 + Math.random() * 0.4; h.readyT = 0; h.stun = 0;
       });
-      this.emit({ type: 'stage', s });
+      // 挑戰中 s 是挑戰的強度關、challenge 是那個挑戰（介面看到 challenge 就不要跳主線劇情）
+      this.emit(c ? { type: 'stage', s, challenge: c } : { type: 'stage', s });
     }
     makeEnemy(k, s, hpScale, x, slot) {
-      const t = D.ENEMIES[k];
-      const hp = (s >= 50 ? C.enemyHp(s) * Math.pow(1.02, s - 50) : C.enemyHp(s)) * t.hp * hpScale * (t.boss ? C.bossHp(Math.min(s, 49)) : C.mobHp(Math.min(s, 49)));
+      const t = D.ENEMIES[k], r = this.challenge && this.challenge.rules;
+      const hp = (s >= MAIN ? C.enemyHp(s) * Math.pow(1.02, s - MAIN) : C.enemyHp(s)) * t.hp * hpScale * (t.boss ? C.bossHp(s) : C.mobHp(Math.min(s, 49))) * (r && r.enemyHp || 1);
       return {
-        k, t, boss: !!t.boss, hp, max: hp, atk: C.enemyAtk(s) * t.atk, shield: 0, shieldMax: 0,
+        k, t, boss: !!t.boss, hp, max: hp, atk: C.enemyAtk(s) * t.atk * (r && r.enemyAtk || 1), shield: 0, shieldMax: 0,
         x, y: GROUND, slot, cd: 0.8 + Math.random() * 0.6, stun: 0, dead: false, uid: Math.random()
       };
     }
     spawnWave() {
-      const s = this.s.stage, ch = s >= 50 ? null : D.CHAPTERS[chapterOf(s)];
-      const pool = ch ? ch.pool : Object.keys(D.ENEMIES).filter(k => !D.ENEMIES[k].boss);
+      const c = this.challenge, r = c && c.rules, s = this.curStage(), ch = s >= MAIN ? null : D.CHAPTERS[chapterOf(s)];
+      const pool = r && r.pool ? r.pool : ch ? ch.pool : Object.keys(D.ENEMIES).filter(k => !D.ENEMIES[k].boss);
+      const bossWave = c ? !!r.bossRush : isBoss(s);
       const list = [];
-      if (isBoss(s)) {
-        const bossId = ch ? ch.boss : BOSS_ROT[Math.floor((s - 50) / 10) % 5];
-        list.push(bossId, pool[0], pool[1]);
+      if (bossWave) {
+        const bossId = c ? r.bossRush[this.wave % r.bossRush.length] : ch ? ch.boss : otBoss(s);
+        list.push(bossId, pool[0 % pool.length], pool[1 % pool.length]);
       } else {
-        const n = [3, 3, 4, 4][this.wave] + (s >= 10 ? 1 : 0) + (s >= 30 ? 1 : 0);
+        const n = [3, 3, 4, 4, 4, 5][Math.min(this.wave, 5)] + (s >= 10 ? 1 : 0) + (s >= 30 ? 1 : 0);
         for (let i = 0; i < n; i++) list.push(pool[Math.floor(Math.random() * pool.length)]);
       }
-      const eliteI = !isBoss(s) && s >= D.ELITE.from && Math.random() < D.ELITE.chance ? Math.floor(Math.random() * list.length) : -1;
+      const allElite = !!(r && r.allElite);
+      const eliteI = !bossWave && s >= D.ELITE.from && Math.random() < D.ELITE.chance ? Math.floor(Math.random() * list.length) : -1;
       list.forEach((k, i) => {
-        const e = this.makeEnemy(k, s, i === eliteI ? D.ELITE.hp : 1, ENEMY_X0 + (D.ENEMIES[k].boss ? 30 : 0) + i * 34 + Math.random() * 16, i);
+        const el = !D.ENEMIES[k].boss && (allElite || i === eliteI);
+        const e = this.makeEnemy(k, s, el ? D.ELITE.hp : 1, ENEMY_X0 + (D.ENEMIES[k].boss ? 30 : 0) + i * 34 + Math.random() * 16, i);
         if (e.boss) { e.skillI = 0; e.castT = D.BOSS_SKILL.first; e.cast = null; e.phase = 1; }
-        if (i === eliteI) { e.elite = true; e.atk *= D.ELITE.atk; }
+        if (el) { e.elite = true; e.atk *= D.ELITE.atk; }
         this.enemies.push(e);
       });
-      if (isBoss(s)) this.bossT = this.bossTime();
+      if (bossWave && !(r && r.time)) this.bossT = this.bossTime();   // 挑戰有總限時就不另外算頭目限時
       this.phase = 'fight';
-      this.emit({ type: 'wave', wave: this.wave, boss: isBoss(s) });
+      this.emit({ type: 'wave', wave: this.wave, boss: bossWave, challenge: c || undefined });
       // 碎碎念：頭目登場一定講；一般關卡開打偶爾講
       const boss = this.enemies.find(e => e.boss);
       if (boss) {
-        if (boss.t.appear) this.say(boss, pick(boss.t.appear), 0.6, true);
+        const line = boss.t.appear ? pick(boss.t.appear) : '';
+        this.emit({ type: 'bossIntro', e: boss, line, villain: !!boss.t.villain });   // 頭目登場大字台詞
+        if (line) this.say(boss, line, 0.6, true);
         const h = this.randHero(); if (h) this.say(h, pick(h.def.talk.boss), 2.4, true);
       } else if (this.wave === 0 && Math.random() < 0.3) { const h = this.randHero(); if (h) this.say(h, pick(h.def.talk.start)); }
     }
@@ -572,21 +609,23 @@
       if (extra) Object.assign(ev, extra);
       this.emit(ev);
       if (e.boss && e.phase === 1 && e.hp > 0 && e.hp <= e.max * 0.5 && e.t.skills2) this.bossPhase(e);
+      else if (e.boss && e.phase === 2 && e.hp > 0 && e.t.skills3 && e.hp <= e.max * (e.t.phase3At || 0.2)) this.bossPhase(e, 3);
       if (e.hp <= 0) {
         e.dead = true; e.cast = null;
-        const g = Math.ceil(C.gold(this.s.stage) * (e.boss ? 12 : e.elite ? D.ELITE.gold : e.minion ? 0.5 : 1) * this.goldMul() * this.buffMul('gold'));
+        const g = Math.ceil(C.gold(this.curStage()) * (e.boss ? 12 : e.elite ? D.ELITE.gold : e.minion ? 0.5 : 1) * this.goldMul() * this.buffMul('gold') * (this.challenge ? D.CHAL.goldMul : 1));
         this.s.gold += g; this.s.stats.kills++;
         this.emit({ type: 'kill', e, gold: g });
-        this.rollChest(e);
-        this.rollResume(e);
+        if (!this.challenge) { this.rollChest(e); this.rollResume(e); }   // 挑戰中不掉寶箱、履歷（獎勵在結算給）
       }
     }
     // 頭目血量剩一半：變身，換第二套招式、攻擊變強、很快放招
-    bossPhase(e) {
-      e.phase = 2; e.atk *= 1.3; e.skillI = 0;
+    // 第三階段（黑心董事長）：血量剩 phase3At 以下，換 skills3、攻擊再變強（bossPhase 事件 phase: 3）
+    bossPhase(e, n = 2) {
+      e.phase = n; e.atk *= 1.3; e.skillI = 0;
       if (!e.cast) e.castT = Math.min(e.castT, 1.2);
-      this.emit({ type: 'bossPhase', e });
-      if (e.t.phase2) this.say(e, e.t.phase2, 0, true);
+      this.emit({ type: 'bossPhase', e, phase: n });
+      const line = n === 3 ? e.t.phase3 : e.t.phase2;
+      if (line) this.say(e, line, 0, true);
       const h = this.randHero(); if (h) this.say(h, pick(['它變身了！', '小心，要來真的了！', '血剩一半，再加把勁！', '這才是本體嗎……']), 1.6, true);
     }
 
@@ -606,7 +645,7 @@
     rollResume(e) {
       if (!this.recruitOpen()) return;
       const R = D.RECRUIT.drop;
-      const n = e.boss ? R.boss : e.minion ? 0 : Math.random() < (e.elite ? R.elite : R.kill) * (this.s.stage >= 50 ? R.ot : 1) ? 1 : 0;
+      const n = e.boss ? R.boss : e.minion ? 0 : Math.random() < (e.elite ? R.elite : R.kill) * (this.s.stage >= MAIN ? R.ot : 1) ? 1 : 0;
       if (n) this.giveResume(n, e, 'drop');
     }
     chestCount() { return (this.s.chests.wood || 0) + (this.s.chests.gold || 0); }
@@ -668,7 +707,7 @@
       this.emit({ type: 'heal', h: x, amount: a, from: from || null, revive: !!revive });
     }
 
-    canUlt(h) { return h.on && !h.dead && h.energy >= 100 && this.phase === 'fight' && this.alive().length > 0; }
+    canUlt(h) { return h.on && !h.dead && !(h.stun > 0) && h.energy >= 100 && this.phase === 'fight' && this.alive().length > 0 && !(this.challenge && this.challenge.rules.noUlt); }
     ult(id, auto) {
       const h = this.heroes.find(x => x.id === id);
       if (!h || !this.canUlt(h)) return false;
@@ -679,7 +718,7 @@
       const role = h.def.role, src = id + '-ult', X = { ult: true };
       if (role === 'tank') {
         const sh = h.max * 0.4 * (1 + (this.baseOf(id) === 'mi' ? this.tSum('miShield') : 0));
-        this.heroes.forEach(x => { if (x.on && !x.dead) x.shield = Math.max(x.shield, sh); });
+        this.heroes.forEach(x => { if (x.on && !x.dead) { x.shield = Math.max(x.shield, sh); x.stun = 0; } });   // 護盾順便解除「加班鎖定」
         this.alive().forEach(e => e.stun = e.boss ? 1 : 2.5); // 頭目只暈 1 秒，而且照樣放技能
       } else if (role === 'crit') {
         const t = this.alive().sort((a, b) => b.hp + b.shield - a.hp - a.shield)[0];
@@ -696,10 +735,11 @@
         this.buffAspd = Math.max(on ? this.buffAspd : 1, vivi ? 1.4 : 1 + 0.5 * k);
         this.buffT = 8;
         if (vivi) {
-          const g = Math.ceil(C.gold(this.s.stage) * 5 * this.goldMul());
+          const g = Math.ceil(C.gold(this.curStage()) * 5 * this.goldMul() * (this.challenge ? D.CHAL.goldMul : 1));
           this.s.gold += g; this.emit({ type: 'goldrain', gold: g });
         }
       } else if (role === 'healer') {
+        this.curseT = 0;   // 治療大招解除「降低攻擊」
         for (const x of this.heroes) {
           if (!x.on) continue;
           if (x.dead) this.heal(x, x.max * D.HEAL.revive, h, true);
@@ -710,7 +750,7 @@
       const th = h.def.base && D.THEME[h.def.rar];
       if (th && th.scare) this.alive().forEach(e => { e.scare = th.scare.dur; if (!e.boss) e.stun = Math.max(e.stun, th.scare.stun); });
       if (th && th.party) {
-        const g = Math.ceil(C.gold(this.s.stage) * th.party.gold * this.goldMul());
+        const g = Math.ceil(C.gold(this.curStage()) * th.party.gold * this.goldMul() * (this.challenge ? D.CHAL.goldMul : 1));
         this.s.gold += g; this.emit({ type: 'goldrain', gold: g, h });
         this.heroes.forEach(x => { if (x !== h && x.on && !x.dead) x.energy = Math.min(100, x.energy + th.party.energy); });
       }
@@ -726,6 +766,7 @@
         if (b) return { kind: 'bonus', b: this.collectBonus(b) };
       }
       if (this.phase !== 'fight') return null;
+      if (this.challenge && this.challenge.rules.noTap) { this.emit({ type: 'tapBlocked' }); return null; }   // 挑戰規則：不能催稿
       let t = null;
       if (hasXY) {
         let best = 1e9;
@@ -822,9 +863,18 @@
         for (const h of this.heroes) if (h.on && !h.dead) this.hurtHero(h, Math.max(e.atk * skill.power, h.max * (skill.pct || 0)), e);
       } else if (skill.kind === 'shield') {
         e.shieldMax = e.max * skill.power; e.shield = e.shieldMax; e.shieldT = skill.dur || 7;
+      } else if (skill.kind === 'stun') {
+        for (const h of this.heroes) if (h.on && !h.dead) h.stun = Math.max(h.stun || 0, skill.dur || 1.5);
+      } else if (skill.kind === 'drain') {
+        for (const h of this.heroes) if (h.on && !h.dead) h.energy = Math.max(0, h.energy * (1 - (skill.power || 0.5)));
+        this.buffT = 0;
+      } else if (skill.kind === 'heal') {
+        e.hp = Math.min(e.max, e.hp + e.max * (skill.pct || 0.05));
+      } else if (skill.kind === 'curse') {
+        this.curseT = skill.dur || 6; this.curseMul = skill.power || 0.7;
       } else if (skill.kind === 'summon') {
-        const s = this.s.stage;
-        const pool = s < 50 ? D.CHAPTERS[chapterOf(s)].pool : [skill.minion];
+        const s = this.curStage();
+        const pool = s < MAIN ? D.CHAPTERS[chapterOf(s)].pool : [skill.minion];
         for (let i = 0; i < (skill.n || 3); i++) {
           const m = this.makeEnemy(skill.minion || pick(pool), s, skill.power || 0.5, e.x - 6 + i * 4, i);
           m.minion = true; m.cd = 1.2 + i * 0.3;
@@ -835,7 +885,7 @@
 
     // 公司福利：第一次通過關卡，公司幫每個已解鎖的辦公室設備免費升 n 級（不影響購買價格）
     givePerk(s) {
-      if (s >= 50) return;
+      if (s >= MAIN) return;
       const ids = D.OFFICE.filter(o => chapterOf(this.s.maxStage) >= o.unlock).map(o => o.id);
       if (!ids.length) return;
       ids.forEach(id => { this.s.perk[id] = this.perk(id) + D.PERK.n; });
@@ -844,18 +894,104 @@
     }
 
     challengeBoss() {
-      if (!this.s.farming) return;
+      if (!this.s.farming || this.challenge) return;
+      this.farmHold = false;
       this.s.farming = false; this.s.stage = this.s.maxStage; this.startStage();
+    }
+    // 回到已經通過的關卡練功（地圖點節點用）：s ≤ 最高進度；選舊關會一直重打那關，直到按「挑戰頭目」或選最新關
+    gotoStage(s) {
+      if (this.challenge) return false;
+      s = Math.floor(s);
+      if (!(s >= 0 && s <= this.s.maxStage)) return false;
+      this.s.stage = s; this.s.farming = s < this.s.maxStage; this.farmClears = 0; this.farmHold = this.s.farming;
+      this.startStage();
+      return true;
+    }
+
+    // ---------- 挑戰關卡 ----------
+    challengeDef(id) { return D.CHALLENGES.find(c => c.id === id) || null; }
+    challengeOpen(c) { return !!c && this.s.maxStage >= c.at; }
+    challengeStars(id) { return this.s.challenges[id] || 0; }
+    // 不改狀態的檢查：可以出發回傳 null；不行回傳 { text, dept?, maxTeam?, locked? }（c 可以是 id 或挑戰物件）
+    challengeCheck(c, team = this.s.team) {
+      if (typeof c === 'string') c = this.challengeDef(c);
+      if (!c) return { text: '找不到這個挑戰' };
+      if (!this.challengeOpen(c)) return { text: `通過 ${stageName(c.at - 1).code} 後解鎖`, locked: true };
+      const r = c.rules;
+      if (r.dept) {
+        const bad = team.filter(id => this.heroDef(id).dept !== r.dept).length;
+        if (bad) return { text: `只能派${D.DEPTS[r.dept].name}的同事（目前有 ${bad} 位不是）`, dept: r.dept };
+      }
+      if (r.maxTeam && team.length > r.maxTeam) return { text: `最多只能派 ${r.maxTeam} 人上場（目前 ${team.length} 人）`, maxTeam: r.maxTeam };
+      return null;
+    }
+    challengeLeft() { return this.challenge ? this.cLeft : 0; }
+    // 挑戰的弱點分布（頭目連戰看頭目、指定怪看指定怪）
+    challengeWeak(c) {
+      const r = c.rules, w = {};
+      const ks = r.bossRush ? r.bossRush : r.pool ? r.pool : D.CHAPTERS[c.ch].pool;
+      ks.forEach(k => { const d = D.ENEMIES[k].weak; if (d) w[d] = (w[d] || 0) + 1 / ks.length; });
+      return w;
+    }
+    // 符合規則的建議隊伍（沒有這個部門的同事會回傳 []）
+    challengeTeam(c) {
+      if (typeof c === 'string') c = this.challengeDef(c);
+      const r = c.rules;
+      const t = this.autoTeam(false, false, { dept: r.dept, max: r.maxTeam, wk: this.challengeWeak(c) });
+      return t.filter(Boolean);
+    }
+    // 出發。回傳 { ok: true } 或 { ok: false, reason, team: 建議隊伍 }；opts.fix = true 時隊伍不符會自動換成建議隊伍（打完換回來）
+    startChallenge(id, opts = {}) {
+      const c = this.challengeDef(id);
+      if (!c) return { ok: false, reason: '找不到這個挑戰' };
+      if (this.challenge) return { ok: false, reason: '正在挑戰中' };
+      if (!this.challengeOpen(c)) return { ok: false, reason: `通過 ${stageName(c.at - 1).code} 後解鎖` };
+      let bad = this.challengeCheck(c), pre = null;   // { text } 或 null
+      if (bad && opts.fix) {
+        const t = this.challengeTeam(c);
+        if (t.length) { pre = this.s.team.slice(); this.setTeam(t); bad = this.challengeCheck(c); }
+      }
+      if (bad) {
+        const t = this.challengeTeam(c);
+        return { ok: false, reason: t.length ? bad.text : `你還沒有${D.DEPTS[c.rules.dept].name}的同事`, team: t };
+      }
+      this.challenge = c; this.mode = 'challenge'; this.cPre = pre; this.cDowns = 0; this.cT = 0;
+      this.mainPhase = { farming: this.s.farming };
+      this.emit({ type: 'challengeStart', c });
+      this.startStage();
+      return { ok: true };
+    }
+    leaveChallenge() { if (!this.challenge) return false; this.endChallenge(false, 'leave'); return true; }
+    // 結算：星數、第一次通關獎勵、3 星獎勵；回到主線原本的進度
+    endChallenge(win, reason) {
+      const c = this.challenge, r = c.rules, prev = this.s.challenges[c.id] || 0;
+      let stars = 0, reward = null, first = false;
+      if (win) {
+        stars = 1 + ((r.time ? this.cLeft >= r.time / 2 : this.cT <= c.par) ? 1 : 0) + (this.cDowns ? 0 : 1);
+        first = !prev;
+        const R = first ? c.reward : {}, gm = this.goldMul();
+        reward = { gold: Math.ceil(C.gold(c.s) * (first ? R.gold || 0 : D.CHAL.repeatGold) * gm), resume: R.resume || 0, chests: Object.assign({}, R.chests), treasure: R.treasure || null };
+        if (stars >= 3 && prev < 3 && c.reward3) reward.resume += c.reward3.resume || 0;
+        this.s.gold += reward.gold; this.s.resume += reward.resume;
+        for (const k in reward.chests) this.s.chests[k] = (this.s.chests[k] || 0) + reward.chests[k];
+        this.s.challenges[c.id] = Math.max(prev, stars);
+      }
+      this.challenge = null; this.mode = 'main';
+      if (this.cPre) { this.setTeam(this.cPre); this.cPre = null; }
+      this.emit({ type: 'challengeEnd', c, win, stars, reward, first, best: this.s.challenges[c.id] || 0, reason: reason || null, time: this.cT });
+      if (win && reward.treasure) this.grant(reward.treasure, 'challenge');
+      this.startStage();
     }
 
     stageCleared() {
+      if (this.challenge) return this.endChallenge(true);
       const s = this.s.stage;
       this.emit({ type: 'clear', s, boss: isBoss(s) });
       if (isBoss(s)) {
         // 頭目專屬神器：主線第一次打倒取得；加班模式第一次打倒輪回來的頭目時升星
-        const bossId = s < 50 ? D.CHAPTERS[chapterOf(s)].boss : BOSS_ROT[Math.floor((s - 50) / 10) % 5];
+        const bossId = s < MAIN ? D.CHAPTERS[chapterOf(s)].boss : otBoss(s);
         const art = D.TREASURES.find(t => t.boss === bossId);
-        if (art && s === this.s.maxStage && (s >= 50 || !this.s.treasures[art.id])) this.grant(art.id, 'boss');
+        if (art && s === this.s.maxStage && (s >= MAIN || !this.s.treasures[art.id])) this.grant(art.id, 'boss');
       }
       if (s === this.s.maxStage) {
         this.s.maxStage++;
@@ -865,19 +1001,23 @@
         const RD = D.RECRUIT.drop;
         if (this.recruitOpen() && (isBoss(s) || s >= RD.firstFrom)) this.giveResume(isBoss(s) ? RD.firstBoss : RD.first, null, 'first');
         this.givePerk(s);
-        if (this.stageT > D.CHEER.slow && s < 50) this.addCheer('slow');
+        if (this.stageT > D.CHEER.slow && s < MAIN) this.addCheer('slow');
         else if (c.n > 0 && ++c.calm >= D.CHEER.calm) { c.calm = 0; c.n--; this.emit({ type: 'cheer', n: c.n, why: 'calm', mul: this.cheerMul() }); }
-        if (s === 49) { this.s.cleared = true; this.emit({ type: 'ending' }); }
+        // 第一週結局（介面接 STORY.nextweek 預告）、第二週結局（接 STORY.ending2，加班模式開放）
+        if (s === WEEK - 1) { this.s.cleared = true; this.emit({ type: 'ending', week: 1 }); }
+        if (s === MAIN - 1) { this.s.cleared2 = true; this.emit({ type: 'ending', week: 2 }); }
         if (this.s.maxStage === 10 && !this.s.autoUlt) this.s.autoUlt = true; // 打贏 Vivi 解鎖自動大招，預設打開
       }
       this.checkJoin(false);
       if (this.s.farming) {
         this.farmClears = (this.farmClears || 0) + 1;
-        if (this.s.autoBoss && this.farmClears >= D.BOSS_RETRY) { this.farmClears = 0; this.s.farming = false; this.s.stage = this.s.maxStage; }
+        if (this.s.autoBoss && !this.farmHold && this.farmClears >= D.BOSS_RETRY) { this.farmClears = 0; this.s.farming = false; this.s.stage = this.s.maxStage; }
       } else this.s.stage = this.s.maxStage;
       this.startStage();
     }
     stageFailed(reason) {
+      if (this.challenge) return this.endChallenge(false, reason);
+      this.farmHold = false;
       const ms = this.s.maxStage;
       const b = this.enemies.find(e => e.boss && !e.dead);
       this.emit({ type: 'fail', s: this.s.stage, reason, left: b ? Math.max(0, b.hp / b.max) : null }); // left：頭目剩幾成血
@@ -911,7 +1051,7 @@
         this.autoT = 0;
         if (this.s.autoBuy && this.s.maxStage >= D.AUTOBUY_AT) {
           // 自動招募（湊滿十連才抽）＋自動編隊
-          if (this.canRecruit(10) && this.phase === 'fight') { this.recruit(10, true); this.autoTeam(true, true); }
+          if (this.canRecruit(10) && this.phase === 'fight') { this.recruit(10, true); if (!this.challenge) this.autoTeam(true, true); }
           for (let i = 0; i < 10; i++) if (!this.buyBest({ tapW: 3 })) break;
           if (this.chestCount() && this.phase === 'fight') { const r = this.openChest(); if (r) r.auto = true; }
         }
@@ -925,11 +1065,14 @@
       if (this.phase !== 'fight') return;
       this.stageT += dt;
       if (this.buffT > 0) this.buffT -= dt;
+      if (this.curseT > 0) this.curseT -= dt;
+      if (this.challenge) { this.cT += dt; if (this.cLeft > 0 && (this.cLeft -= dt) <= 0) { this.cLeft = 0; return this.stageFailed('time'); } }
       const aspdMul = this.aspdBase() * (this.buffT > 0 ? this.buffAspd : 1) * this.buffMul('aspd');
 
       // 英雄
       for (const h of this.heroes) {
         if (!h.on || h.dead) continue;
+        if (h.stun > 0) { h.stun -= dt; continue; }   // 加班鎖定中：不能攻擊、不能放大招
         h.cd -= dt * aspdMul;
         if (h.cd <= 0 && this.target()) { this.heroAttack(h); h.cd = 1 / h.def.aspd; }
         if (this.canUlt(h)) {
@@ -987,11 +1130,12 @@
       if (h.def.role === 'tank') h.energy = Math.min(100, h.energy + 4 * this.chargeMul());
       this.emit({ type: 'hurt', h, dmg, e });
       if (h.hp <= 0) {
-        h.hp = 0; h.dead = true; this.emit({ type: 'down', h });
+        h.hp = 0; h.dead = true; h.stun = 0; this.emit({ type: 'down', h });
+        if (this.challenge) this.cDowns++;
         if (Math.random() < 0.7) this.say(h, pick(h.def.talk.down), 0.1, true);
       }
     }
   }
 
-  G.Engine = { Game, newSave, fixSave, stageName, chapterOf, isBoss, GROUND, BOSS_ROT };
+  G.Engine = { Game, newSave, fixSave, stageName, chapterOf, isBoss, weekOf, GROUND, BOSS_ROT, MAIN, WEEK };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -151,7 +151,11 @@
     { at: 10, key: 'office1', text: '人體工學椅、年終獎金池' },
     { at: 20, key: 'office2', text: '機械鍵盤' },
     { at: 30, key: 'office3', text: '能量飲料櫃' },
-    { at: 50, key: 'ot', text: '加班模式' }
+    { at: 6, key: 'challenge', text: '挑戰關卡（地圖上的支線）' },
+    { at: 50, key: 'week2', text: '第二週：黑心公司篇' },
+    { at: 60, key: 'office5', text: '午睡艙' },
+    { at: 80, key: 'office6', text: '員工工會' },
+    { at: 100, key: 'ot', text: '加班模式' }
   ];
   // 收集目標（最後一個 = 名冊總人數，syncRoster 會重算）
   const COLLECT = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
@@ -208,6 +212,68 @@
                   title: '五百字起跳的週報', phase2: '主管已讀……並且退件！',
                   skills2: [{ id: 'attach', name: '補附件', kind: 'shield', delay: 2, power: 0.22, dur: 7, line: '請附上佐證資料' },
                             { id: 'reject', name: '主管退件', kind: 'aoe', delay: 2.5, power: 2.1, pct: 0.3, line: '退件，理由請自行體會' }] },
+    // ----- 第二週：黑心公司篇（第 6～10 章）-----
+    // 各章弱點：6 大廳 行政×2、7 無薪假 客服×2、8 機房 工程×2、9 併購 業務×2、10 頂樓 五部門都有
+    e_timeclock:{ name: '血汗打卡機', weak: 'admin', hp: 1.3, atk: 1.0, spd: 30 },
+    e_unpaid:   { name: '無薪假通知', weak: 'admin', hp: 0.9, atk: 1.3, spd: 44 },
+    e_shackle:  { name: '責任制手銬', weak: 'eng', hp: 1.6, atk: 0.9, spd: 24 },
+    e_spy:      { name: '黑心間諜', weak: 'cs', hp: 0.9, atk: 1.5, spd: 50 },
+    e_contract: { name: '霸王條款', weak: 'sales', hp: 1.4, atk: 1.1, spd: 32 },
+    e_cctv:     { name: '監視器怪', weak: 'eng', hp: 1.1, atk: 1.2, spd: 36 },
+    e_pie:      { name: '假大餅', weak: 'design', hp: 1.2, atk: 0.9, spd: 34 },
+    e_suit:     { name: '黑西裝打手', weak: 'sales', hp: 1.7, atk: 1.3, spd: 28 },
+    e_layoff:   { name: '裁員信', weak: 'cs', hp: 1.0, atk: 1.6, spd: 46 },
+    // 第二週頭目的新招式：
+    //   stun：全隊被「加班鎖定」dur 秒不能動（坦克大招可以解除）
+    //   drain：全隊大招充能被扣 power（0～1），增益效果也被取消
+    //   heal：頭目回復最大血量的 pct
+    //   curse：全隊攻擊 × power，持續 dur 秒（治療大招可以解除）
+    //   第三階段：血量剩 phase3At 以下換 skills3（只有黑心董事長）
+    //   villain：黑心公司的反派頭目（登場有大字台詞演出）
+    b_996:      { name: '996 監工', weak: 'eng', hp: 15, atk: 2.6, spd: 20, boss: true, villain: true,
+                  appear: ['早上九點到晚上九點，一週六天！', '誰說要下班？我允許了嗎？'],
+                  skills: [{ id: 'whip', name: '加班鞭', kind: 'stun', delay: 2, dur: 1.5, line: '鞭子一揮，全員繼續！' },
+                           { id: 'kpi996', name: '績效鞭策', kind: 'aoe', delay: 2.2, power: 1.4, pct: 0.2, line: '你們的 KPI 呢？' }],
+                  title: '拿鞭子的監工機器人', phase2: '偵測到員工想下班……啟動 996 模式！',
+                  skills2: [{ id: 'whip2', name: '連續加班鞭', kind: 'stun', delay: 2, dur: 2, line: '今天不准走！明天也不准！' },
+                            { id: 'shift', name: '再排一班', kind: 'summon', delay: 2, n: 3, minion: 'e_timeclock', power: 0.5, line: '叫打卡機來盯著你們！' },
+                            { id: 'kpi9962', name: '績效鞭策', kind: 'aoe', delay: 2.2, power: 1.7, pct: 0.24, line: '業績不夠就加班補！' }] },
+    b_unpaid:   { name: '無薪假魔', weak: 'sales', hp: 14, atk: 2.5, spd: 18, boss: true, villain: true,
+                  appear: ['下個月開始，大家「自願」放無薪假喔～', '共體時艱，你們懂的吧？'],
+                  skills: [{ id: 'drain', name: '扣薪', kind: 'drain', delay: 2, power: 0.6, line: '這個月的薪水……先欠著' },
+                           { id: 'blank', name: '空白月曆', kind: 'shield', delay: 2, power: 0.2, dur: 7, line: '月曆上沒有你的班喔' }],
+                  title: '抱著空白月曆的影子惡魔', phase2: '月曆全部撕掉！整年都放無薪假！',
+                  skills2: [{ id: 'drain2', name: '全額扣薪', kind: 'drain', delay: 2, power: 1, line: '獎金？那是什麼可以吃嗎？' },
+                            { id: 'gloom', name: '士氣低落', kind: 'curse', delay: 2, power: 0.6, dur: 6, line: '反正做再多也沒有用～' },
+                            { id: 'blank2', name: '空白月曆', kind: 'shield', delay: 2, power: 0.25, dur: 7, line: '再撕一頁' }] },
+    b_duty:     { name: '責任制巨像', weak: 'admin', hp: 17, atk: 2.7, spd: 16, boss: true, villain: true,
+                  appear: ['責任制的意思是：責任是你的，制度是我的', '筆電帶回家，週末也是上班日'],
+                  skills: [{ id: 'chain', name: '筆電鎖鏈', kind: 'stun', delay: 2.2, dur: 1.5, line: '把筆電鎖在你手上！' },
+                           { id: 'oncall', name: '半夜 on call', kind: 'aoe', delay: 2.5, power: 1.8, pct: 0.26, line: '凌晨三點，電話響了～' }],
+                  title: '鎖鏈和筆電組成的巨像', phase2: '責任越重，我就越大！',
+                  skills2: [{ id: 'self', name: '責任自己扛', kind: 'heal', delay: 2.5, pct: 0.08, line: '出事？那是你的責任，不是我的' },
+                            { id: 'oncall2', name: '全天候 on call', kind: 'aoe', delay: 2.5, power: 2.1, pct: 0.3, line: '假日也要回訊息喔' },
+                            { id: 'chain2', name: '筆電鎖鏈', kind: 'stun', delay: 2, dur: 2, line: '鎖緊一點！' }] },
+    b_merger:   { name: '併購章魚', weak: 'cs', hp: 16, atk: 2.7, spd: 18, boss: true, villain: true,
+                  appear: ['簽了吧，每一條都對你很有利（對我）', '我有八隻手，可以同時簽八份合約'],
+                  skills: [{ id: 'sign', name: '強迫簽約', kind: 'curse', delay: 2, power: 0.7, dur: 6, line: '附件第 87 條，請自己看' },
+                           { id: 'ink', name: '噴墨水', kind: 'aoe', delay: 2.2, power: 1.6, pct: 0.22, line: '墨水是合約的一部分喔' }],
+                  title: '每隻腳都在簽合約的章魚', phase2: '我要把你們整間公司都吞下去！',
+                  skills2: [{ id: 'board', name: '董事會投票', kind: 'summon', delay: 2, n: 3, minion: 'e_suit', power: 0.5, line: '支持併購的請舉手——全票通過！' },
+                            { id: 'sign2', name: '再簽一份', kind: 'curse', delay: 2, power: 0.6, dur: 7, line: '這份是補充合約' },
+                            { id: 'absorb', name: '吸收合併', kind: 'heal', delay: 2.5, pct: 0.07, line: '你們的資產，現在是我的了' }] },
+    b_ceo:      { name: '黑心董事長', weak: 'design', hp: 22, atk: 3.0, spd: 16, boss: true, villain: true,
+                  appear: ['公司就是你家，所以你不用回家。', '喵。我是說——歡迎來到頂樓。'],
+                  skills: [{ id: 'home', name: '公司就是你家', kind: 'stun', delay: 2.2, dur: 1.5, line: '家人怎麼會計較加班費呢？' },
+                           { id: 'cigar', name: '雪茄煙霧', kind: 'aoe', delay: 2.5, power: 1.8, pct: 0.24, line: '呼～這就是成功的味道' }],
+                  title: '胸口一顆黑心的巨大黑貓', phase2: '你們以為打得贏董事會嗎？我就是董事會！',
+                  skills2: [{ id: 'freeze', name: '凍結薪資', kind: 'drain', delay: 2, power: 0.8, line: '調薪？明年再說，明年也不會說' },
+                            { id: 'guard', name: '黑西裝保鑣', kind: 'summon', delay: 2, n: 3, minion: 'e_suit', power: 0.5, line: '保全！把他們請出去！' },
+                            { id: 'cigar2', name: '雪茄煙霧', kind: 'aoe', delay: 2.5, power: 2.1, pct: 0.28, line: '再抽一根' }],
+                  phase3At: 0.2, phase3: '黑心……全開！你們一個都別想下班！！',
+                  skills3: [{ id: 'blackheart', name: '黑心爆發', kind: 'aoe', delay: 2.5, power: 2.4, pct: 0.32, line: '感受一下真正的黑心吧！' },
+                            { id: 'contract996', name: '終身合約', kind: 'curse', delay: 2, power: 0.6, dur: 6, line: '簽到退休，不，簽到下輩子' },
+                            { id: 'home2', name: '公司就是你家', kind: 'stun', delay: 2, dur: 2, line: '回家？這裡就是你家！' }] },
     b_final:    { name: '下班前的新需求', weak: 'cs', hp: 16, atk: 2.8, spd: 18, boss: true,
                   appear: ['這個很簡單，下班前可以給我嗎？', '17:59，叮咚——'],
                   skills: [
@@ -221,7 +287,7 @@
                             { id: 'easy2', name: '就一個小地方', kind: 'shield', delay: 2, power: 0.2, dur: 7, line: '真的，就改一個小地方' }] }
   };
 
-  // 五章（週一～週五），每章 10 關，每關 3 波；第 10 關是頭目（限時 30 秒）
+  // 十章（第一週 週一～週五、第二週 下週一～下週五），每章 10 關，每關 3～4 波；第 10 關是頭目（限時 40 秒）
   const CHAPTERS = [
     { day: '週一', title: '收心操', bg: 'bg1', pool: ['e_alarm', 'e_mail', 'e_sticky'], boss: 'b_vivi',
       names: ['打卡', '早會', '收信', '便利貼', '開機更新', '晨間報告', '回覆群組', '整理桌面', '午餐前', '老闆突擊檢查'] },
@@ -232,15 +298,32 @@
     { day: '週四', title: '死線逼近', bg: 'bg4', pool: ['e_deadline', 'e_chat', 'e_kpi', 'e_phone'], boss: 'b_report',
       names: ['倒數三天', '群組爆炸', '已讀不回', '倒數兩天', '數據整理', '週報草稿', '主管已讀', '最後確認', '還有一點點', '週報魔像'] },
     { day: '週五', title: '下班大作戰', bg: 'bg5', pool: ['e_overtime', 'e_deadline', 'e_chat', 'e_bug', 'e_sticky'], boss: 'b_final',
-      names: ['小週末', '下午茶', '收尾', '偷偷收包包', '五點半', '電梯快來', '五點五十', '關電腦', '最後一封信', '下班前的新需求'] }
+      names: ['小週末', '下午茶', '收尾', '偷偷收包包', '五點半', '電梯快來', '五點五十', '關電腦', '最後一封信', '下班前的新需求'] },
+    // ----- 第二週：黑心公司篇（week: 2）-----
+    { day: '下週一', week: 2, title: '黑心公司來了', bg: 'bg6', pool: ['e_timeclock', 'e_cctv', 'e_unpaid', 'e_suit'], boss: 'b_996',
+      names: ['併購通知', '大廳報到', '刷卡閘門', '血汗打卡', '保全巡邏', '監視器底下', '電梯故障', '爬樓梯', '監工來了', '996 監工'] },
+    { day: '下週二', week: 2, title: '無薪假風暴', bg: 'bg7', pool: ['e_layoff', 'e_pie', 'e_unpaid', 'e_spy'], boss: 'b_unpaid',
+      names: ['留職停薪', '空白月曆', '假大餅', '畫餅充飢', '人事公告', '裁員名單', '茶水間耳語', '共體時艱', '最後一天', '無薪假魔'] },
+    { day: '下週三', week: 2, title: '責任制地獄', bg: 'bg8', pool: ['e_shackle', 'e_cctv', 'e_contract', 'e_timeclock'], boss: 'b_duty',
+      names: ['機房入口', '伺服器過熱', '責任制', '手銬會議', '24 小時待命', '凌晨三點', '假日 on call', '已讀不回', '筆電鎖鏈', '責任制巨像'] },
+    { day: '下週四', week: 2, title: '併購大會', bg: 'bg9', pool: ['e_contract', 'e_suit', 'e_pie', 'e_spy'], boss: 'b_merger',
+      names: ['董事會報到', '霸王條款', '簽了再說', '黑西裝', '股東會', '資產清點', '合約地獄', '對賭協議', '最後簽約', '併購章魚'] },
+    { day: '下週五', week: 2, title: '頂樓董事長室', bg: 'bg10', pool: ['e_spy', 'e_layoff', 'e_shackle', 'e_suit', 'e_unpaid'], boss: 'b_ceo',
+      names: ['頂樓電梯', '特助辦公室', '黑心金庫', '貓抓板走廊', '雪茄室', '董事長的秘密', '被困的員工', '最終簡報', '董事長室門口', '黑心董事長'] }
   ];
+  // 主線關數：第一週 WEEK 關、全部 MAIN 關；MAIN 以後是加班模式
+  const WEEK = 50, MAIN = 100;
 
   // 數值曲線（s = 0 起算的總關卡編號）
+  // 第二週（第 51 關起）怪物成長換一條比較平的曲線：新的一週從比週五輕一點的地方開始（hp0、atk0），之後每關 × hp、atk
+  // boss：第二週頭目血量再 × boss（小怪的 mobHp 加成在第一週末已經很高，頭目要跟上）
+  const W2 = { hp0: 0.16, hp: 1.12, atk0: 1, atk: 1.09, boss: 8 };
+  const hp1 = s => 30 * Math.pow(1.355, s) * Math.pow(1.09, Math.max(0, s - 10)) * Math.pow(1.05, Math.max(0, s - 15));
   const CURVE = {
-    enemyHp: s => 30 * Math.pow(1.355, s) * Math.pow(1.09, Math.max(0, s - 10)) * Math.pow(1.05, Math.max(0, s - 15)),
+    enemyHp: s => s < 50 ? hp1(s) : hp1(49) * W2.hp0 * Math.pow(W2.hp, s - 49),
     mobHp: s => Math.pow(1.05, Math.max(0, s - 20)),   // v1.3 多了第 5 格與招募：小怪（不含頭目）後期血量再加一點
-    bossHp: s => Math.pow(0.99, Math.max(0, s - 20)),   // 頭目後期少一點：抽卡運氣差的人不要卡在 4-10、5-10 太久
-    enemyAtk: s => 4 * Math.pow(1.16, s),
+    bossHp: s => Math.pow(0.99, Math.max(0, Math.min(s, 49) - 20)) * (s >= 50 ? W2.boss : 1),   // 頭目後期少一點：抽卡運氣差的人不要卡在 4-10、5-10 太久
+    enemyAtk: s => s < 50 ? 4 * Math.pow(1.16, s) : 4 * Math.pow(1.16, 49) * W2.atk0 * Math.pow(W2.atk, s - 49),
     gold: s => 3 * Math.pow(1.22, s),
     heroAtk: (base, lv) => base * (1 + 0.32 * (lv - 1)) * Math.pow(1.045, lv - 1) * Math.pow(1.3, Math.floor(lv / 10)),
     heroHp: (base, lv) => base * (1 + 0.3 * (lv - 1)) * Math.pow(1.04, lv - 1) * Math.pow(1.3, Math.floor(lv / 10)),
@@ -260,7 +343,10 @@
     { id: 'chair', name: '人體工學椅', icon: '🪑', desc: '全隊血量 +7%', per: 0.07, base: 80, grow: 1.42, max: 40, unlock: 1 },
     { id: 'bonus', name: '年終獎金池', icon: '💰', desc: '薪水收入 +8%', per: 0.08, base: 120, grow: 1.45, max: 40, unlock: 1 },
     { id: 'keyboard', name: '機械鍵盤', icon: '⌨️', desc: '全隊攻速 +5%', per: 0.05, base: 400, grow: 1.6, max: 15, unlock: 2 },
-    { id: 'drink', name: '能量飲料櫃', icon: '🥤', desc: '大招充能 +6%', per: 0.06, base: 1500, grow: 1.6, max: 15, unlock: 3 }
+    { id: 'drink', name: '能量飲料櫃', icon: '🥤', desc: '大招充能 +6%', per: 0.06, base: 1500, grow: 1.6, max: 15, unlock: 3 },
+    // 第二週
+    { id: 'nap', name: '午睡艙', icon: '😴', desc: '全隊血量 +10%', per: 0.1, base: 5e6, grow: 1.5, max: 20, unlock: 6 },
+    { id: 'union', name: '員工工會', icon: '✊', desc: '對頭目傷害 +10%', per: 0.1, base: 3e8, grow: 1.5, max: 20, unlock: 8 }
   ];
 
   // 公司福利：每第一次通過一關，已解鎖的辦公室設備都免費升 n 級（不影響購買價格）
@@ -281,6 +367,11 @@
     { id: 'black', rar: 3, boss: 'b_client', name: '五彩斑斕的黑', fx: { atk: 0.3, boss: 0.25 }, lore: '甲方夢寐以求的顏色，看久了會有呼吸感。' },
     { id: 'clock', rar: 3, boss: 'b_meeting', name: '會議室的永恆時鐘', fx: { time: 10, aspd: 0.1 }, lore: '指針永遠停在「再五分鐘就好」。' },
     { id: 'binder', rar: 3, boss: 'b_report', name: '完美週報', fx: { hp: 0.4, atk: 0.2 }, lore: '其實是去年的週報改日期，但主管很滿意。' },
+    { id: 'whip', rar: 3, boss: 'b_996', name: '折斷的監工鞭', fx: { aspd: 0.15, time: 5 }, lore: '斷成兩截之後，終於可以拿來當逗貓棒了。' },
+    { id: 'calendar', rar: 3, boss: 'b_unpaid', name: '寫滿假期的月曆', fx: { gold: 0.5, hp: 0.2 }, lore: '每一格都寫著「特休」，看了心情就好。' },
+    { id: 'offkey', rar: 3, boss: 'b_duty', name: '下班的鑰匙', fx: { atk: 0.3, charge: 0.15 }, lore: '打開它，筆電鎖鏈就鬆開了。' },
+    { id: 'nopen', rar: 3, boss: 'b_merger', name: '不簽的鋼筆', fx: { boss: 0.3, atk: 0.2 }, lore: '寫不出「同意」兩個字的筆，非常珍貴。' },
+    { id: 'whiteheart', rar: 3, boss: 'b_ceo', name: '變白的心', fx: { atk: 0.3, hp: 0.3, gold: 0.3, ot: 0.5 }, lore: '黑心洗乾淨之後，原來也會發光。' },
     { id: 'badge', rar: 3, boss: 'b_final', name: '準時下班徽章', fx: { atk: 0.25, hp: 0.25, gold: 0.25, ot: 0.5 }, lore: '傳說中的社畜勳章，全公司只有四個人拿過。' },
     { id: 'redpen', rar: 2, name: '傳說中的紅筆', fx: { crit: 0.1, jieAtk: 0.25 }, lore: '阿傑用它圈過一萬張稿子，每一圈都是「再改」。' },
     { id: 'mug', rar: 2, name: '無限續杯馬克杯', fx: { charge: 0.2 }, lore: '喝不完的咖啡，也下不完的班。' },
@@ -346,6 +437,18 @@
     { id: 'q15', text: '通過週四', type: 'stage', n: 40, gold: 300000 },
     { id: 'qc4', text: '收集 20 種寶物', type: 'treasures', n: 20, gold: 500000 },
     { id: 'q16', text: '準時下班！通過週五', type: 'stage', n: 50, gold: 1000000 },
+    // v1.4 第二週與挑戰關卡
+    { id: 'qw1', text: '打倒 996 監工', type: 'stage', n: 60, gold: 3e7, resume: 3 },
+    { id: 'qw2', text: '撐過無薪假風暴', type: 'stage', n: 70, gold: 3e8, resume: 3 },
+    { id: 'qw3', text: '擺脫責任制', type: 'stage', n: 80, gold: 3e9, resume: 3 },
+    { id: 'qw4', text: '阻止併購', type: 'stage', n: 90, gold: 3e10, resume: 3 },
+    { id: 'qw5', text: '打倒黑心董事長', type: 'stage', n: 100, gold: 3e11, resume: 5 },
+    { id: 'qc5', text: '通過 1 個挑戰關卡', type: 'chal', n: 1, gold: 500, resume: 1 },
+    { id: 'qc6', text: '通過 5 個挑戰關卡', type: 'chal', n: 5, gold: 50000, resume: 2 },
+    { id: 'qc7', text: '挑戰關卡合計 15 顆星', type: 'cstars', n: 15, gold: 1e6, resume: 3 },
+    { id: 'qc8', text: '通過 15 個挑戰關卡', type: 'chal', n: 15, gold: 1e9, resume: 5 },
+    { id: 'qc9', text: '挑戰關卡合計 50 顆星', type: 'cstars', n: 50, gold: 1e10, resume: 5 },
+    { id: 'qc10', text: '全部挑戰關卡 3 星', type: 'cstars', n: 999, gold: 1e12, resume: 10 },
     // v1.3：收集同事（獎勵 resume = 履歷份數）
     { id: 'qr1', text: '招募 1 次', type: 'pulls', n: 1, gold: 0, resume: 1 },
     { id: 'qh1', text: '收集 10 位同事', type: 'heroes', n: 10, gold: 0, resume: 1 },
@@ -386,7 +489,7 @@
   const AUTOBUY_AT = 5;
   // 同事打氣：打輸一次 +fail 層、第一次過某關花超過 slow 秒（只算戰鬥時間）+1 層；每層攻擊血量 +per、薪水 +gold（最多 max 層）
   // 之後每順利過 calm 關退 1 層。一般玩家幾乎不會觸發，是給不太會玩的人的保底
-  const CHEER = { per: 0.3, gold: 0.15, max: 40, fail: 5, slow: 50, calm: 3 };
+  const CHEER = { per: 0.3, gold: 0.15, max: 40, fail: 5, slow: 50, calm: 3 };   // 主線（第 100 關以前）才會因為打太久 +1 層
 
   // 劇情（章節開頭、頭目登場、頭目擊敗）
   const STORY = {
@@ -411,7 +514,134 @@
     intro4: [['kui', '週五了！今天一定要準時下班！'], ['mi', '別說出來，會被聽到。'], ['jie', '噓——'], ['vivi', '大家今天也要加油喔～（其實我也想早點走）']],
     mid4: [['kui', '五點半了……大家都在偷偷收包包。'], ['mi', '我已經把電話設成轉語音信箱了。'], ['jie', '小心，每週五 17:59 都會有一封信。'], ['kui', '什麼信？'], ['jie', '……傳說中的「下班前的新需求」。']],
     boss_b_final: [['sys', '17:59，一封新信件：「這個很簡單，下班前可以給我嗎？」'], ['kui', '它、它來了……'], ['vivi', '大家！打倒它就放假！'], ['mi', '這是最後一通電話了。'], ['jie', '這次，我們準時下班。']],
-    win_b_final: [['kui', '我們……準時下班了！！'], ['jie', '十年來第一次。'], ['mi', '電話我拔掉了。'], ['vivi', '好啦好啦，下週一見～'], ['sys', '取得神器「準時下班徽章」！'], ['sys', '恭喜通關！解鎖「加班模式」：無限關卡，怪物越來越強，寶箱照樣掉，想玩多久就多久。']]
+    win_b_final: [['kui', '我們……準時下班了！！'], ['jie', '十年來第一次。'], ['mi', '電話我拔掉了。'], ['vivi', '好啦好啦，下週一見～'], ['sys', '取得神器「準時下班徽章」！'], ['sys', '第一週完成！不過……週一早上好像有一封信在等你們。']],
+
+    // ----- 第二週：黑心公司篇（說話者 v_ceo 黑心董事長、v_aide 黑心特助）-----
+    // 第一週結局後的「下週一」預告
+    nextweek: [['sys', '——下週一，早上 8:59。'], ['mi', '……信箱裡有一封信，寄件人是「黑心公司」。'], ['kui', '標題寫「恭喜貴公司即將成為我們的一份子」？'],
+      ['v_aide', '（視訊會議突然打開）各位早安。我是黑心公司董事長的特助。'], ['v_aide', '上週那些工作怪，都是我們派來做「員工耐操度測試」的。你們分數很高，董事長很欣賞。'],
+      ['v_ceo', '喵。從今天起，你們公司歸我管了。我們的口號是——公司就是你家，所以你不用回家。'], ['jie', '……我要請假。'], ['v_aide', '請假單我們已經幫你撕了。'],
+      ['vivi', '等一下！誰說要賣公司了！我還沒簽字耶！'], ['sys', '第二週「黑心公司篇」開始！一路打上黑心公司大樓的頂樓，把公司搶回來！']],
+    // 舊存檔：原本在加班模式的人
+    migrate: [['sys', '公告：「加班模式」暫時關閉整修！'], ['sys', '第 51 關起改成第二週「黑心公司篇」，你的同事、寶物、等級都還在。打完第二週（第 100 關）就會重新開放加班模式。'], ['vivi', '所以上禮拜的加班，原來都是黑心公司害的？']],
+
+    intro5: [['v_aide', '歡迎光臨黑心公司大樓。請在大廳刷卡，並把您的週末寄放在櫃檯。'], ['kui', '刷卡機一直顯示「已打卡：上班」，可是我還沒進去耶。'],
+      ['mi', '而且下班的按鈕被貼起來了。'], ['jie', '這棟樓一樓就這麼黑心，上面還得了。'], ['vivi', '大家跟我衝！我們要去頂樓找他們董事長談判！']],
+    mid5: [['kui', '天花板上全部都是監視器……連茶水間也有。'], ['v_aide', '我們只是關心員工。每天上廁所超過三分鐘，系統會自動寄關心信給您。'],
+      ['mi', '這不是關心，這是監控吧。'], ['jie', '小聲點。前面那台很大的機器人，手上拿的是……鞭子？']],
+    boss_b_996: [['v_aide', '介紹一下，這位是我們的 996 監工。早上九點到晚上九點，一週六天，全年無休。'], ['kui', '它、它拿鞭子耶！'],
+      ['mi', '看到它舉鞭子就要小心，被打到會一陣子不能動。'], ['sys', '「加班鞭」會讓全隊暫停一下：坦克的大招可以解除！']],
+    win_b_996: [['jie', '鞭子斷了。終於。'], ['kui', '我撿到一半，可以拿去逗貓。'], ['v_aide', '……監工只是基層主管而已。樓上的部門，會讓你們想念加班的感覺。'],
+      ['sys', '取得神器「折斷的監工鞭」！解鎖辦公室「午睡艙」。']],
+
+    intro6: [['v_aide', '這層是「彈性工作區」。我們很彈性：薪水可以彈性不發。'], ['mi', '這裡的人好安靜……'],
+      ['kui', '那位大哥一直抱著空白月曆發呆。'], ['vivi', '空白月曆？那不就是無薪假嗎！誰會這樣對員工啦！'], ['v_aide', '我們都說是「共體時艱」。']],
+    mid6: [['kui', '茶水間有人在發大餅耶，好香！'], ['jie', '別吃。那是假的，咬下去是空氣。'], ['mi', '我剛剛跟一個黑心員工聊了一下，他說已經三個月沒領到全薪了。'],
+      ['vivi', '……我以前是不是也畫過大餅？'], ['jie', '畫過。但至少妳有發薪水。']],
+    boss_b_unpaid: [['v_aide', '請見我們的人資顧問：無薪假魔。他最擅長幫公司「省錢」。'], ['sys', '「扣薪」會把大家的大招充能扣光，增益效果也會被取消。充滿了就趕快放！']],
+    win_b_unpaid: [['kui', '月曆上的空格……都變成特休了！'], ['mi', '那位抱月曆的大哥哭了，他說要回家吃晚餐。'], ['vivi', '這才對嘛。上班是為了生活，不是生活為了上班。'],
+      ['sys', '取得神器「寫滿假期的月曆」！']],
+
+    intro7: [['v_aide', '這裡是機房。我們實行「責任制」，所以這裡沒有下班時間，也沒有冷氣。'], ['jie', '伺服器的風扇聲跟我的腰一樣在哀號。'],
+      ['mi', '每個人手上都銬著一台筆電……'], ['kui', '筆電上還寫著「請保持在線」。']],
+    mid7: [['mi', '凌晨三點了。電話又響了。'], ['jie', '我們在打怪，不是在加班。這兩件事要分清楚。'], ['v_aide', '責任制的意思很簡單：事情是你的責任，時間是公司的。'],
+      ['vivi', '這根本不是責任制，是無限制吧！']],
+    boss_b_duty: [['v_aide', '我們的責任制巨像，由一千台加班的筆電組成。'], ['kui', '它好大……而且一直在變大！'],
+      ['sys', '巨像變身後會「責任自己扛」幫自己回血：火力集中，一口氣打下去！']],
+    win_b_duty: [['mi', '筆電鎖鏈全部解開了。'], ['jie', '我第一次覺得登出是這麼美的兩個字。'], ['v_aide', '……再上去就是董事會了。董事長在樓上等你們。'],
+      ['sys', '取得神器「下班的鑰匙」！解鎖辦公室「員工工會」。']],
+
+    intro8: [['v_aide', '董事會議廳。今天的議程只有一項：通過併購案。'], ['vivi', '我是那間公司的老闆，我反對！'], ['v_aide', '反對無效。合約第 87 條寫了：「反對視同同意」。'],
+      ['kui', '這種合約可以簽嗎！？'], ['jie', '不行。所以我們來把它撕掉。']],
+    mid8: [['mi', '每一份合約上面都有很小很小的字。'], ['kui', '「乙方需自願加班」「乙方的夢想歸甲方所有」……'], ['jie', '我做了十年設計，第一次想把字級調到 72 級讓大家看清楚。'],
+      ['vivi', '我回去要把我們公司的合約都改成大字版。']],
+    boss_b_merger: [['v_aide', '請見我們的併購長：併購章魚。八隻手，可以同時簽八份合約。'], ['mi', '那墨水好像會讓人沒力氣……'],
+      ['sys', '「強迫簽約」會降低全隊攻擊：治療同事的大招可以解除！']],
+    win_b_merger: [['vivi', '合約我撕了！這間公司是我們大家的！'], ['kui', '老闆好帥！'], ['v_ceo', '（廣播）……很好。上來吧。頂樓見。'],
+      ['sys', '取得神器「不簽的鋼筆」！']],
+
+    intro9: [['v_aide', '……這裡是頂樓。董事長室在走廊的盡頭。'], ['kui', '特助小姐，妳為什麼一直幫我們開門？'], ['v_aide', '……因為我也好久沒下班了。'],
+      ['mi', '那妳要不要一起走？'], ['v_aide', '等你們打倒董事長再說吧。']],
+    mid9: [['kui', '這邊的房間裡關了好多黑心員工！'], ['jie', '他們都在加班，一直加班，加到忘記自己為什麼加班。'], ['mi', '我們一定要把他們救出去。'],
+      ['vivi', '打完這一場，我請所有人吃飯！這次是真的！']],
+    boss_b_ceo: [['v_ceo', '喵。終於來了。'], ['v_ceo', '你們知道嗎？員工不用回家，公司就永遠不會停。這就是我的經營哲學。'],
+      ['jie', '你的哲學，我們不買單。'], ['sys', '黑心董事長有三個階段，血量剩一點點時會「黑心全開」！大家撐住！']],
+    win_b_ceo: [['v_ceo', '喵嗚……我只是……不想一個人待在公司而已……'], ['v_aide', '董事長，其實您也可以下班的。'],
+      ['v_ceo', '……下班？可以嗎？'], ['vivi', '當然可以。明天見，準時上班，準時下班。'], ['sys', '取得神器「變白的心」！']],
+    ending2: [['sys', '黑心公司倒閉了。被困住的員工全部救出來，大家一起走出大樓。'], ['kui', '夕陽好漂亮……這是我第一次在天黑前下班！'],
+      ['mi', '電話我拔掉了。這次是兩支。'], ['jie', '下週一見。不，下週一我要請特休。'], ['v_aide', '我也想請特休……請問你們公司還缺人嗎？'],
+      ['vivi', '歡迎加入！我們公司準時下班的！'], ['sys', '恭喜通關第二週！解鎖「加班模式」：第 101 關起無限關卡，十個頭目輪流出現，想玩多久就多久。']]
+  };
+
+  // ---------- 挑戰關卡（v1.4）----------
+  // ch：顯示在地圖第幾章（0 起，跟 chapterOf 一樣）；at：通過第幾關解鎖（maxStage ≥ at）
+  // off：難度＝怪物強度用「解鎖那關再往後 off 關」（s = at - 1 + off，自動算），數字越大越難
+  // rules：time 限時秒數、enemyHp／enemyAtk 倍率、noUlt 不能放大招、noTap 不能催稿、dept 只能派某部門、maxTeam 最多幾人、
+  //        allElite 全部精英、bossRush 頭目連戰（每波一隻）、waves 波數、pool 只出這些怪
+  // reward：第一次通關 { resume, chests: { gold, wood }, gold（薪水，engine 依 s 換算成金額）, treasure（現有寶物 +1 星） }
+  // reward3：第一次拿到 3 星再給；重打過關只給一點薪水（CHAL.repeatGold）
+  // 星數：1 過關、2 有限時＝剩一半以上時間／沒限時＝par 秒內過關、3 沒有人倒下
+  const W1BOSS = ['b_vivi', 'b_client', 'b_meeting', 'b_report', 'b_final'], W2BOSS = ['b_996', 'b_unpaid', 'b_duty', 'b_merger', 'b_ceo'];
+  const CHALLENGES = [
+    { id: 'c01', ch: 0, at: 6, off: 0, name: '晨會快問快答', desc: '主管說「大家簡單講一下」，結果要在 45 秒內講完，還不准用絕招。', rules: { waves: 3, time: 45, noUlt: true }, reward: { resume: 2, chests: { wood: 1 }, gold: 30 } },
+    { id: 'c02', ch: 0, at: 9, off: 1, name: '打卡大塞車', desc: '八點五十九分，全公司的鬧鐘同時響了。數量很多，但一戳就倒。', rules: { waves: 4, pool: ['e_alarm'], enemyHp: 0.6, time: 50 }, reward: { resume: 2, chests: { wood: 2 }, gold: 30 } },
+    { id: 'c03', ch: 1, at: 13, off: 1, name: '客服專線爆線', desc: '所有電話一起響。只有客服部的同事接得起來。', rules: { waves: 3, dept: 'cs' }, reward: { resume: 3, chests: { gold: 1 }, gold: 40 } },
+    { id: 'c04', ch: 1, at: 18, off: 2, name: '甲方改稿馬拉松', desc: '甲方說「最後一次修改」。這是今天第八次聽到。不准催稿。', rules: { bossRush: ['b_client'], enemyHp: 4, noTap: true }, reward: { resume: 3, chests: { gold: 1 }, gold: 40, treasure: 'swatch' } },
+    { id: 'c05', ch: 1, at: 19, off: 2, name: '印表機卡紙地獄', desc: '每一台印表機都卡紙，而且都是特大號的。', rules: { waves: 3, pool: ['e_printer'], allElite: true, enemyHp: 2 }, reward: { resume: 2, chests: { wood: 2 }, gold: 40, treasure: 'ctrlz' } },
+    { id: 'c06', ch: 2, at: 23, off: 2, name: '兩人小組會議', desc: '會議室只訂到兩個位子。最多派 2 人。', rules: { waves: 3, maxTeam: 2 }, reward: { resume: 3, chests: { gold: 1 }, gold: 50 } },
+    { id: 'c07', ch: 2, at: 26, off: 3, name: '工程部的大日子', desc: '系統上線日，Bug 比人還多。只能派工程部。', rules: { waves: 3, dept: 'eng', enemyHp: 1.2 }, reward: { resume: 3, chests: { gold: 1 }, gold: 50 } },
+    { id: 'c08', ch: 2, at: 29, off: 3, name: '會議連開', desc: '老闆的突擊檢查剛結束，無限會議就開始了。70 秒內兩場都要開完。', rules: { bossRush: ['b_vivi', 'b_meeting'], time: 70, enemyHp: 3 }, reward: { resume: 4, chests: { gold: 1 }, gold: 60, treasure: 'mug' } },
+    { id: 'c09', ch: 3, at: 33, off: 2, name: '業務衝業績', desc: '月底了，業績還差一點點。只能派業務部。', rules: { waves: 3, dept: 'sales' }, reward: { resume: 3, chests: { gold: 1 }, gold: 60 } },
+    { id: 'c10', ch: 3, at: 36, off: 3, name: '死線前 35 秒', desc: 'Deadline 沙漏都殺紅眼了，攻擊特別痛。', rules: { waves: 3, time: 35, enemyAtk: 1.5 }, reward: { resume: 3, chests: { wood: 2 }, gold: 60 } },
+    { id: 'c11', ch: 3, at: 39, off: 3, name: '週報不准點', desc: '主管說週報要「自然地」寫完。不准催稿，也不准放大招。', rules: { waves: 3, noTap: true, noUlt: true }, reward: { resume: 4, chests: { gold: 1 }, gold: 70, treasure: 'redpen' } },
+    { id: 'c12', ch: 4, at: 43, off: 2, name: '行政大掃除', desc: '年底大掃除，便利貼精和加班幽靈到處都是。只能派行政部。', rules: { waves: 3, dept: 'admin' }, reward: { resume: 3, chests: { gold: 1 }, gold: 70 } },
+    { id: 'c13', ch: 4, at: 46, off: 3, name: '設計部比稿', desc: '五家公司一起比稿，只有設計部能上台。', rules: { waves: 3, dept: 'design', enemyHp: 2 }, reward: { resume: 3, chests: { gold: 1 }, gold: 70 } },
+    { id: 'c14', ch: 4, at: 50, off: 2, name: '第一週頭目連戰', desc: '五個頭目排隊上門，而且都吃飽了。150 秒內全部打倒。', rules: { bossRush: W1BOSS, enemyHp: 2, time: 150 }, reward: { resume: 6, chests: { gold: 2 }, gold: 100, treasure: 'stamp' }, reward3: { resume: 3 } },
+    { id: 'c15', ch: 5, at: 54, off: 2, name: '大廳保全全精英', desc: '黑心公司大廳的保全，個個都是加大版。', rules: { waves: 4, allElite: true }, reward: { resume: 3, chests: { gold: 1 }, gold: 80 } },
+    { id: 'c16', ch: 5, at: 58, off: 3, name: '監工突擊', desc: '996 監工吃了加班便當，血量兩倍。45 秒內解決它。', rules: { bossRush: ['b_996'], enemyHp: 5, time: 45 }, reward: { resume: 4, chests: { gold: 1 }, gold: 80, treasure: 'headset' } },
+    { id: 'c17', ch: 6, at: 63, off: 3, name: '無薪假也要上班', desc: '沒領薪水還要上班，大家沒力氣放大招，怪也特別兇。', rules: { waves: 3, noUlt: true, enemyHp: 3, enemyAtk: 1.5 }, reward: { resume: 3, chests: { gold: 1 }, gold: 90 } },
+    { id: 'c18', ch: 6, at: 66, off: 2, name: '三人小組', desc: '公司說「人力精實」，這次最多 3 人。', rules: { waves: 4, maxTeam: 3 }, reward: { resume: 4, chests: { gold: 1 }, gold: 90 } },
+    { id: 'c19', ch: 6, at: 69, off: 4, name: '畫大餅大會', desc: '假大餅一個接一個飛過來，60 秒內全部打掉。', rules: { waves: 5, pool: ['e_pie'], time: 60 }, reward: { resume: 4, chests: { gold: 1 }, gold: 90, treasure: 'tablet' } },
+    { id: 'c20', ch: 7, at: 73, off: 4, name: '機房只准工程師', desc: '機房門禁只認工程部的卡，伺服器還特別硬。', rules: { waves: 3, dept: 'eng', enemyHp: 4 }, reward: { resume: 4, chests: { gold: 1 }, gold: 100 } },
+    { id: 'c21', ch: 7, at: 77, off: 4, name: '凌晨三點 on call', desc: '大家都睡眼惺忪，沒力氣催稿。45 秒內處理完。', rules: { waves: 3, noTap: true, time: 45, enemyHp: 3 }, reward: { resume: 4, chests: { gold: 1 }, gold: 100 } },
+    { id: 'c22', ch: 8, at: 83, off: 4, name: '業務談判桌', desc: '對面是黑西裝和霸王條款。只有業務部說得過他們。', rules: { waves: 3, dept: 'sales', enemyHp: 4 }, reward: { resume: 4, chests: { gold: 1 }, gold: 110 } },
+    { id: 'c23', ch: 8, at: 86, off: 5, name: '霸王條款全精英', desc: '每一份合約都是加大加厚版，看了就痛。', rules: { waves: 4, allElite: true, enemyHp: 3, enemyAtk: 1.3 }, reward: { resume: 4, chests: { gold: 2 }, gold: 110 } },
+    { id: 'c24', ch: 8, at: 89, off: 5, name: '雙頭目併購案', desc: '無薪假魔和併購章魚聯手了。90 秒內拆散他們。', rules: { bossRush: ['b_unpaid', 'b_merger'], time: 90, enemyHp: 4 }, reward: { resume: 5, chests: { gold: 2 }, gold: 120, treasure: 'namecard' } },
+    { id: 'c25', ch: 9, at: 94, off: 4, name: '特助的考驗', desc: '特助說：「董事長只見兩個人，而且不准用絕招。」', rules: { waves: 3, maxTeam: 2, noUlt: true, enemyHp: 2 }, reward: { resume: 5, chests: { gold: 2 }, gold: 120 } },
+    { id: 'c26', ch: 9, at: 100, off: 3, name: '黑心頭目大連戰', desc: '黑心公司五大頭目一起復活。180 秒內全部打倒——這是最難的挑戰。', rules: { bossRush: W2BOSS, enemyHp: 4, time: 180 }, reward: { resume: 8, chests: { gold: 3 }, gold: 150, treasure: 'umbrella' }, reward3: { resume: 5 } }
+  ];
+  const CHAL = { repeatGold: 5, goldMul: 0.5 };   // 重打過關給 該關打一隻怪 × repeatGold 的薪水；挑戰中打怪薪水 × goldMul（不掉寶箱、履歷）
+  for (const c of CHALLENGES) {
+    c.s = c.at - 1 + (c.off || 0);
+    c.level = c.off <= 1 ? 1 : c.off <= 3 ? 2 : 3;   // 難度 1 簡單、2 普通、3 困難（介面可以畫成 ★ 數）
+    const r = c.rules, nb = r.bossRush ? r.bossRush.length : 0;
+    c.par = r.time ? null : nb ? 30 * nb : (r.waves || 3) * 15;
+    c.starText = ['過關', r.time ? '剩一半以上的時間' : `${c.par} 秒內過關`, '沒有人倒下'];
+    const t = [];
+    if (r.time) t.push(`限時 ${r.time} 秒`);
+    if (nb) t.push(`頭目連戰 ×${nb}`); else t.push(`${r.waves || 3} 波`);
+    if (r.dept) t.push(`只能派${DEPTS[r.dept].name}`);
+    if (r.maxTeam) t.push(`最多 ${r.maxTeam} 人`);
+    if (r.noUlt) t.push('不能放大招');
+    if (r.noTap) t.push('不能催稿');
+    if (r.allElite) t.push('全部精英');
+    if (r.enemyHp && r.enemyHp !== 1) t.push(`敵人血量 ×${r.enemyHp}`);
+    if (r.enemyAtk && r.enemyAtk !== 1) t.push(`敵人攻擊 ×${r.enemyAtk}`);
+    c.ruleText = t;   // 介面直接列出來
+  }
+  { const q = QUESTS.find(x => x.id === 'qc10'); if (q) q.n = CHALLENGES.length * 3; }
+
+  // ---------- 地圖（v1.4）----------
+  // week1 第 1～50 關、week2 第 51～100 關。圖 1080×2592（ar = 高 ÷ 寬）。
+  // path[i] = 那週第 i 關節點的 [x, y]（0～1 比例，左上角為原點，由下往上走）：A 的 art/map/weekN.json 道路中心線沿弧長平均取 50 點（頭尾各留 1.2%）
+  // chal[id] = 挑戰節點：解鎖那關（c.at - 1）的節點往道路垂直方向推出寬度的 0.15～0.18，避開其他節點與圖邊
+  const MAP = {
+    week1: { img: 'art/map/week1.webp', ar: 2.4, from: 0, to: 50,
+      path: [[0.494, 0.9823], [0.499, 0.9606], [0.522, 0.941], [0.545, 0.9213], [0.564, 0.9012], [0.57, 0.8794], [0.563, 0.8579], [0.541, 0.838], [0.511, 0.8201], [0.483, 0.8016], [0.462, 0.7815], [0.456, 0.7601], [0.474, 0.7399], [0.504, 0.7219], [0.538, 0.7054], [0.57, 0.6881], [0.591, 0.6682], [0.6, 0.6467], [0.591, 0.6253], [0.569, 0.6056], [0.532, 0.5898], [0.495, 0.5744], [0.462, 0.5574], [0.437, 0.5382], [0.442, 0.5173], [0.469, 0.4985], [0.508, 0.4836], [0.547, 0.4691], [0.569, 0.4506], [0.56, 0.4294], [0.533, 0.4109], [0.505, 0.3924], [0.507, 0.3711], [0.533, 0.3519], [0.555, 0.3322], [0.559, 0.3108], [0.535, 0.292], [0.504, 0.2741], [0.493, 0.2538], [0.516, 0.2345], [0.552, 0.2184], [0.585, 0.2016], [0.593, 0.1804], [0.568, 0.1612], [0.543, 0.1429], [0.55, 0.1219], [0.557, 0.1005], [0.557, 0.0786], [0.558, 0.0567], [0.558, 0.0348]],
+      chal: {'c01':  [0.41, 0.8805], 'c02':  [0.644, 0.7832], 'c03':  [0.332, 0.7092], 'c04':  [0.44, 0.6468], 'c05':  [0.744, 0.6053], 'c06':  [0.595, 0.5207], 'c07':  [0.345, 0.4566], 'c08':  [0.728, 0.4599], 'c09':  [0.353, 0.3531], 'c10':  [0.716, 0.2969], 'c11':  [0.642, 0.2612], 'c12':  [0.435, 0.1918], 'c13':  [0.391, 0.1125], 'c14':  [0.398, 0.0337]} },
+    week2: { img: 'art/map/week2.webp', ar: 2.4, from: 50, to: 100, lockedUntil: 50,
+      path: [[0.497, 0.943], [0.496, 0.9227], [0.496, 0.9024], [0.497, 0.8821], [0.5, 0.8619], [0.514, 0.8428], [0.537, 0.825], [0.555, 0.8062], [0.56, 0.7861], [0.547, 0.7666], [0.522, 0.7493], [0.489, 0.7345], [0.455, 0.72], [0.43, 0.7028], [0.427, 0.6828], [0.447, 0.6645], [0.479, 0.6492], [0.514, 0.6352], [0.554, 0.6238], [0.591, 0.6105], [0.61, 0.5922], [0.596, 0.5731], [0.563, 0.5582], [0.526, 0.5451], [0.489, 0.5323], [0.45, 0.5201], [0.434, 0.5018], [0.462, 0.4855], [0.501, 0.4733], [0.542, 0.4628], [0.583, 0.4517], [0.615, 0.4366], [0.606, 0.4181], [0.568, 0.4051], [0.529, 0.3932], [0.505, 0.3773], [0.516, 0.3581], [0.502, 0.3405], [0.495, 0.3212], [0.527, 0.3064], [0.565, 0.2937], [0.591, 0.2771], [0.58, 0.2589], [0.573, 0.2391], [0.574, 0.2191], [0.599, 0.2019], [0.607, 0.1856], [0.573, 0.1725], [0.532, 0.1617], [0.543, 0.1432]],
+      chal: {'c15': [0.656, 0.8849], 'c16': [0.4, 0.7904], 'c17': [0.582, 0.6793], 'c18': [0.313, 0.6282], 'c19': [0.714, 0.6238], 'c20': [0.674, 0.5102], 'c21': [0.276, 0.4921], 'c22': [0.742, 0.3833], 'c23': [0.347, 0.3873], 'c24': [0.647, 0.3412], 'c25': [0.413, 0.2434], 'c26': [0.388, 0.1265]} }
   };
 
   // ---------- 名冊合併：原本四人 + G.ROSTER（js/roster.js）→ ALLHEROES ----------
@@ -468,7 +698,7 @@
   // 原本四人補上職業的通用說明以外的欄位
   for (const h of HEROES) { h.cost = h.cost || HRAR[h.rar].cost; h.roleName = ROLES[h.role].name; }
 
-  const D = G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, RARITY, TREASURES, SETS, FX_TEXT, CHEST, ELITE, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK, BOSS_RETRY,
+  const D = G.DATA = { HEROES, ORDER, ENEMIES, CHAPTERS, CURVE, OFFICE, RARITY, TREASURES, SETS, FX_TEXT, CHEST, ELITE, QUESTS, STORY, BONUS, COMBO, BOSS_SKILL, TALK, ULT_WAIT, AUTOBUY_AT, CHEER, PERK, BOSS_RETRY, WEEK, MAIN, W2, CHALLENGES, CHAL, MAP,
     DEPTS, WEAK, DEPT_BONUS, ROLES, DEPT_SHOT, HEAL, SUPPORT, HRAR, THEME, RECRUIT, TEAM, UNLOCKS, COLLECT, TALK_GENERIC, makeHero, syncRoster };
   syncRoster();
 })(typeof window !== 'undefined' ? window : globalThis);

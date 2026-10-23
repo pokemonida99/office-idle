@@ -4,6 +4,8 @@
 //   node tools/sim.js 1.5 [分鐘]       舊用法：一般玩家但每秒點擊數改成 1.5
 //   node tools/sim.js all 4 normal,newbie  只跑指定模型、各 4 次（環境變數 OVR='{"team":"fill"}' 可覆寫所有模型）；單一模型可加第 4 個參數 JSON 覆寫，例如 '{"tps":3}'；CASTLOG=1 印頭目技能
 // 玩家模型見下方 MODELS；新手模型要在 35～45 分鐘內通關、前三章不反覆失敗。
+// v1.4：主線 100 關（第一週 1～50、第二週 51～100）；表格的「第一週」「第二週」是各週花的時間
+//   node tools/sim.js chal [次數]      每個挑戰關卡：用一般玩家跑到解鎖那關（和再晚 10 關）的存檔去打，印過關率與星數
 // v1.3：有 js/roster.js 就用真名冊，沒有就產生 96 位假同事；各模型的 team：'auto' 每次招募後 autoTeam、'fill' 只補空位（保守）
 const vm = require('vm'), fs = require('fs'), path = require('path');
 function load() {
@@ -50,6 +52,7 @@ function run(m, minutes, verbose) {
   const g = new Engine.Game();
   const dt = 0.05; let t = 0, tapAcc = 0, buyT = 0, questT = 0, fails = 0, failCh = [0, 0, 0, 0, 0];
   let burstLeft = 0, burstT = 0, idleT = 0, maxIdle = 0, maxIdleAt = 0, lastProg = 0, stuck = 0;
+  failCh.push(0, 0, 0, 0, 0);
   const reach = { 0: 0 }, first = {}, readyT = {}; let r10 = 0, r30 = 0;
   const mark = (k) => { if (first[k] === undefined) first[k] = t; };
   let bonusN = 0, bonusGot = 0, says = 0, casts = 0, bossStart = 0; const bossDur = [];
@@ -92,7 +95,7 @@ function run(m, minutes, verbose) {
       for (const q of DATA.QUESTS) if (!g.s.quests[q.id] && g.questDone && g.questDone(q)) g.claimQuest(q.id);
     }
     for (const e of g.events) {
-      if (e.type === 'fail') { fails++; if (e.s < 50) failCh[Math.floor(e.s / 10)]++; if (verbose) console.log(`  失敗 ${Engine.stageName(e.s).code} ${e.reason} ${(t / 60).toFixed(1)} 分  頭目剩 ${e.left === null ? '-' : Math.round(e.left * 100) + '%'}  打氣 ${g.cheerN()} 層`); }
+      if (e.type === 'fail') { fails++; if (e.s < DATA.MAIN) failCh[Math.floor(e.s / 10)]++; if (verbose) console.log(`  失敗 ${Engine.stageName(e.s).code} ${e.reason} ${(t / 60).toFixed(1)} 分  頭目剩 ${e.left === null ? '-' : Math.round(e.left * 100) + '%'}  打氣 ${g.cheerN()} 層`); }
       if (e.type === 'levelup' || e.type === 'buy') { mark('firstBuy'); if (e.rankUp) mark('rank'); }
       if (e.type === 'join') mark('join_' + e.id);
       if (e.type === 'loot') mark('loot');
@@ -117,7 +120,8 @@ function run(m, minutes, verbose) {
       reach[ms] = t;
       if (verbose && ms % 10 === 0) console.log(`通過 ${ms} 關  ${(t / 60).toFixed(1)} 分  失敗 ${fails}  隊伍 ${g.s.team.map(id => `${g.heroDef(id).name}${DATA.HRAR[g.heroDef(id).rar].key}★${g.star(id)}Lv${g.s.heroes[id]}`).join(' ')}  同事 ${g.ownedCount()} 位  履歷 ${g.s.resume}  辦公室 ${JSON.stringify(g.s.office)} 點擊Lv${g.s.tapLv} 打氣${g.cheerN()}`);
     }
-    if (ms >= 50 && !verbose && t >= 1800) break;
+    if (m.snap && m.snap[ms] && !m.snap[ms].s) m.snap[ms].s = JSON.parse(JSON.stringify(g.s));   // chal 模式要的存檔
+    if (ms >= (m.until || DATA.MAIN) && !verbose && t >= 1800) break;
   }
   return { g, t, bossDur, fails, failCh, reach, first, maxIdle, maxIdleAt, stuck, bonusN, bonusGot, says, casts, r10, r30, own, pulls, resumeGot, rarGot };
 }
@@ -127,7 +131,7 @@ const arg = process.argv[2];
 if (arg && MODELS[arg] || (arg && !isNaN(+arg))) {
   const m = Object.assign({}, MODELS[arg] || Object.assign({}, MODELS.normal, { tps: +arg }), process.argv[4] ? JSON.parse(process.argv[4]) : {});
   const r = run(m, +(process.argv[3] || 45), true);
-  console.log(`${m.name}：最終 ${r.g.s.maxStage} 關 ${fmtT(r.reach[50])} 通關  失敗 ${r.fails}（各章 ${r.failCh.join('/')}）`);
+  console.log(`${m.name}：最終 ${r.g.s.maxStage} 關  第一週 ${fmtT(r.reach[50])}  第二週 ${fmtT(r.reach[100] - r.reach[50])}  全部 ${fmtT(r.reach[100])}  失敗 ${r.fails}（各章 ${r.failCh.join('/')}）`);
   console.log('第一次：', Object.entries(r.first).map(([k, v]) => k + ' ' + fmtT(v)).join('、'));
   console.log('頭目戰（過關那次）：', r.bossDur.join('、'));
   console.log(`同事：前 10 分鐘 ${r.r10} 位、30 分鐘 ${r.r30} 位、最後 ${r.g.ownedCount()} 位（含原本四人）  抽 ${r.pulls} 次、拿到履歷 ${r.resumeGot}  新同事稀有度 N/R/SR/SSR/UR ${r.rarGot.join('/')}`);
@@ -135,17 +139,47 @@ if (arg && MODELS[arg] || (arg && !isNaN(+arg))) {
   console.log(`外送 ${r.bonusGot}/${r.bonusN}  碎碎念 ${r.says} 句（平均 ${(r.t / Math.max(1, r.says)).toFixed(0)} 秒一句）  頭目技能 ${r.casts} 次  最長無進展 ${r.maxIdle.toFixed(1)} 秒`);
   const rows = []; for (let i = 1; i <= r.g.s.maxStage; i++) if (r.reach[i] !== undefined) rows.push(`${Engine.stageName(i - 1).code}:${(r.reach[i] - r.reach[i - 1]).toFixed(0)}s`);
   console.log(rows.join(' '));
+} else if (arg === 'chal') {
+  // 挑戰關卡難度表：一般玩家跑一次主線，在每個挑戰解鎖那關（at）與 at + 10 關時存檔，用存檔打挑戰（自動排符合規則的隊伍）
+  const N = +(process.argv[3] || 3), C = DATA.CHALLENGES, res = {};
+  C.forEach(c => res[c.id] = { at: [0, 0, 0, 0, 0], late: [0, 0, 0, 0, 0], n: 0 });
+  for (let k = 0; k < N; k++) {
+    const snap = {}; C.forEach(c => { snap[c.at] = snap[c.at] || {}; snap[c.at + 10] = snap[c.at + 10] || {}; });
+    run(Object.assign({}, MODELS.normal, { snap, until: DATA.MAIN + 10 }), 150, false);
+    for (const c of C) {
+      res[c.id].n++;
+      for (const [key, at] of [['at', c.at], ['late', c.at + 10]]) {
+        const sv = snap[at] && snap[at].s; if (!sv) continue;
+        const g = new Engine.Game(JSON.parse(JSON.stringify(sv)));
+        g.s.autoUlt = !c.rules.noUlt;
+        const st = g.startChallenge(c.id, { fix: true });
+        if (!st.ok) { res[c.id][key][4]++; continue; }
+        let end = null, t = 0;
+        while (!end && t < 600) {
+          g.update(0.05); t += 0.05;
+          if (Math.random() < 0.05) { const e = g.target(); if (e) g.tap(e.x, e.y - 30); }   // 一般玩家每秒點 1 下左右
+          for (const e of g.events) if (e.type === 'challengeEnd') end = e;
+          g.events.length = 0;
+        }
+        res[c.id][key][end && end.win ? end.stars : 0]++;
+      }
+    }
+  }
+  const f = a => `過關 ${(100 * (a[1] + a[2] + a[3]) / Math.max(1, a.reduce((x, y) => x + y, 0))).toFixed(0).padStart(3)}%  星 ${a[1]}/${a[2]}/${a[3]}${a[4] ? '  缺人' + a[4] : ''}`;
+  console.log('挑戰'.padEnd(18), '解鎖', '剛解鎖時'.padEnd(26), '晚 10 關');
+  for (const c of C) console.log(`${c.id} ${c.name.padEnd(9, '　')}`, `${Engine.stageName(c.at - 1).code}`.padEnd(6), f(res[c.id].at).padEnd(28), f(res[c.id].late), '  ', c.ruleText.join('、'));
 } else {
-  const N = +(process.argv[3] || 3), minutes = 60, only = process.argv[4] ? process.argv[4].split(',') : null;
-  console.log('模型'.padEnd(26), '通過1-10  1-20   1-30   1-40   通關     失敗(各章)   同事@10分/30分  前5分鐘新東西');
+  const N = +(process.argv[3] || 3), minutes = 100, only = process.argv[4] ? process.argv[4].split(',') : null;
+  console.log('模型'.padEnd(26), '通過1-10  1-30   第一週   第二週   全部     失敗(第一週/第二週)  同事@10分/30分  前5分鐘新東西');
   for (const [k, m] of Object.entries(MODELS)) {
     if (only && !only.includes(k)) continue;
     const rs = []; for (let i = 0; i < N; i++) rs.push(run(Object.assign({}, m, process.env.OVR ? JSON.parse(process.env.OVR) : {}), minutes, false));
     const avg = st => { const v = rs.map(r => r.reach[st]).filter(x => x !== undefined); return v.length === rs.length ? v.reduce((a, b) => a + b, 0) / v.length : undefined; };
-    const fc = [0, 1, 2, 3, 4].map(i => (rs.reduce((a, r) => a + r.failCh[i], 0) / N).toFixed(1).replace('.0', ''));
+    const fw = (a, b) => (rs.reduce((x, r) => x + r.failCh.slice(a, b).reduce((p, q) => p + q, 0), 0) / N).toFixed(1);
     const early = Object.entries(rs[0].first).filter(([, v]) => v < 300).map(([k2, v]) => k2 + '@' + fmtT(v)).join(' ');
-    const end = avg(50) === undefined ? `${Math.round(rs.reduce((a, r) => a + r.g.s.maxStage, 0) / N)}關未通` : fmtT(avg(50));
+    const w1 = avg(50), all = avg(100), w2 = all !== undefined && w1 !== undefined ? all - w1 : undefined;
+    const end = all === undefined ? `${Math.round(rs.reduce((a, r) => a + r.g.s.maxStage, 0) / N)}關未通` : fmtT(all);
     const col = `${(rs.reduce((a, r) => a + r.r10, 0) / N).toFixed(0)}/${(rs.reduce((a, r) => a + r.r30, 0) / N).toFixed(0)}`;
-    console.log(`${k.padEnd(9)}${m.name.slice(0, 10).padEnd(12, '　')}`, [10, 20, 30, 40].map(s => fmtT(avg(s)).padEnd(6)).join(' '), end.padEnd(8), fc.join('/').padEnd(12), col.padEnd(14), early, rs.some(r => r.stuck) ? ' !!卡死' : '');
+    console.log(`${k.padEnd(9)}${m.name.slice(0, 10).padEnd(12, '　')}`, [10, 30].map(s => fmtT(avg(s)).padEnd(6)).join(' '), fmtT(w1).padEnd(8), fmtT(w2).padEnd(8), end.padEnd(8), `${fw(0, 5)}/${fw(5, 10)}`.padEnd(20), col.padEnd(14), early, rs.some(r => r.stuck) ? ' !!卡死' : '');
   }
 }

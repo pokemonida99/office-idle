@@ -17,17 +17,18 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="不想上班">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
 <div id="app">
   <header id="top">
-    <div class="stage"><b id="stDay">週一</b><div class="stInfo"><span id="stCode">1-1</span><span id="stName">打卡</span></div></div>
+    <div class="stage" role="button" aria-label="打開地圖"><b id="stDay">週一<i class="mapIc">🗺</i><i class="dot" id="mapDot" hidden></i></b><div class="stInfo"><span id="stCode">1-1</span><span id="stName">打卡</span></div></div>
     <div id="waves"></div>
     <div class="gold" id="goldBox"><i class="coin"></i><b id="gold">0</b></div>
     <button class="resBox" id="resBox" hidden><img class="resIc" src="art/ui/resume.webp" data-fb="res" alt=""><b id="resume">0</b><span id="resPlus"></span></button>
     <button id="btnSet" class="icon" aria-label="設定">⚙️</button>
   </header>
+  <div id="chBar" hidden><b id="chName"></b><span id="chTime"></span><button id="chLeave">離開</button></div>
   <div id="goal" hidden><em>🎯</em><span id="goalTx"></span><i class="gb"><i id="goalBar"></i></i></div>
   <div id="stageWrap">
     <canvas id="cv"></canvas>
@@ -64,17 +65,29 @@
     <p class="note">免費・不用登入・進度存在這台裝置</p>
     <button id="btnA2hs" type="button">📲 加到手機主畫面</button>
     <p class="kbdHint">鍵盤：<kbd>空白鍵</kbd> 催稿　<kbd>1</kbd>～<kbd>5</kbd> 放大招　<kbd>Esc</kbd> 關閉視窗</p>
-    <p class="ver">版本 <b id="verTxt">v1.3.4</b></p>
+    <p class="ver">版本 <b id="verTxt">v1.4.0</b></p>
   </div>
 </div>
 
 <div id="story" class="overlay" hidden>
   <button id="btnSkip" class="skip">跳過 ⏭</button>
   <div class="dlg">
-    <div class="who"><div class="face"></div><b class="name"></b></div>
+    <div class="who"><div class="face"></div><div class="vface" hidden></div><b class="name"></b></div>
     <p class="text"></p>
     <span class="next">點一下繼續 ▶</span>
   </div>
+</div>
+
+<div id="mapUI" class="overlay" hidden>
+  <div class="mapWrap">
+    <div class="mapHead"><b>🗺 地圖</b><span id="mapInfo"></span><button id="mapClose">關閉 ✕</button></div>
+    <div class="mapScroll"><div class="mapInner"></div></div>
+  </div>
+</div>
+
+<div id="chEnd" class="overlay" hidden>
+  <div class="ceBox"><div class="ceRays"></div><h2 class="ceT"></h2><p class="ceName"></p><div class="ceStars"><i>★</i><i>★</i><i>★</i></div><p class="ceSub"></p><div class="ceRew"></div>
+    <div class="btns"><button id="ceAgain">再挑戰</button><button id="ceMap">回地圖</button><button id="ceOk" class="pri">回主線</button></div></div>
 </div>
 
 <div id="modal" class="overlay" hidden><div class="box"></div></div>
@@ -96,11 +109,11 @@
     <div class="btns"><button id="cOpen" class="pri">打開</button><button id="cAll">全部打開</button><button id="cClose">關閉</button></div>
   </div>
 </div>
-<script src="js/roster.js?v=12"></script>
-<script src="js/data.js?v=12"></script>
-<script src="js/engine.js?v=12"></script>
-<script src="js/audio.js?v=12"></script>
-<script src="js/render.js?v=12"></script>
-<script src="js/ui.js?v=12"></script>
+<script src="js/roster.js?v=13"></script>
+<script src="js/data.js?v=13"></script>
+<script src="js/engine.js?v=13"></script>
+<script src="js/audio.js?v=13"></script>
+<script src="js/render.js?v=13"></script>
+<script src="js/ui.js?v=13"></script>
 </body>
 </html>
