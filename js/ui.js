@@ -4,7 +4,7 @@
   const D = G.DATA, E = G.Engine;
   const $ = s => document.querySelector(s);
   const KEY = 'office-idle-v1';
-  G.VERSION = 'v1.3.3';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
+  G.VERSION = 'v1.3.4';   // 改版時一起改 index.html 的 #verTxt 與 ?v=
   const HERO = {}; D.HEROES.forEach(h => { HERO[h.id] = h; });   // 原本四人（劇情、升職造型用）
   const AUTOBUY_AT = D.AUTOBUY_AT || 5;
 
@@ -821,7 +821,7 @@
     const left = game.chestCount();
     CU.open.textContent = left ? `再開一個（剩 ${left}）` : '收下';
     CU.all.hidden = left < 2;
-    setText(CU.info, '');
+    setText(CU.info, left ? '點任意處開下一個' : '點任意處收下');
   }
   function openAll() {
     if (cuBusy) return;
@@ -1219,7 +1219,12 @@
     document.addEventListener('contextmenu', e => e.preventDefault());
     Object.assign(CU, { el: $('#chestUI'), stage: $('#chestUI .cstage'), chest: $('#chestUI .chestImg'), reveal: $('#chestUI .reveal'), rimg: $('#chestUI .rimg'), rtag: $('#chestUI .rtag'), rname: $('#chestUI .rname'), rstar: $('#chestUI .rstar'), rfx: $('#chestUI .rfx'), rlore: $('#chestUI .rlore'), list: $('#chestUI .clist'), info: $('#chestUI .cinfo'), open: $('#cOpen'), all: $('#cAll') });
     CU.open.onclick = () => { if (!CU.list.hidden) { closeChestUI(); return; } revealOne(); };
-    CU.chest.onclick = () => { if (CU.reveal.hidden) revealOne(); };
+    // 點畫面任何地方（按鈕以外）：還沒開就開、開完就下一個或收下
+    CU.el.addEventListener('click', e => {
+      if (e.target.closest('button') || cuBusy) return;
+      if (!CU.list.hidden) { closeChestUI(); return; }
+      revealOne();
+    });
     CU.all.onclick = openAll;
     $('#cClose').onclick = closeChestUI;
     $('#btnChest').onclick = openChestUI;

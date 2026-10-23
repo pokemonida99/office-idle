@@ -1,5 +1,5 @@
 // 離線快取（tools/build_sw.js 產生，不要手改 sw.js）
-const VERSION = 'v1.3.3';
+const VERSION = 'v1.3.4';
 const CACHE = 'office-idle-' + VERSION;
 const FILES = ["./",
   "art/bg/bg1.webp",
